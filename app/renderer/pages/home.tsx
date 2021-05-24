@@ -9,12 +9,83 @@ import { FixedSizeList as List, areEqual } from 'react-window'
 import { createClient } from '@supabase/supabase-js'
 import { usePopper } from 'react-popper'
 import * as _ from 'lodash'
+import { useHotkeys, useIsHotkeyPressed } from 'react-hotkeys-hook'
+import { useOverlayTriggerState } from '@react-stately/overlays'
+import {
+  useOverlay,
+  usePreventScroll,
+  useModal,
+  OverlayProvider,
+  OverlayContainer
+} from '@react-aria/overlays'
+import { useDialog } from '@react-aria/dialog'
+import { FocusScope } from '@react-aria/focus'
+import { useButton } from '@react-aria/button'
 
+const str = d => JSON.stringify(d)
 const log = console.log
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
 const supabaseKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
 const supabase = createClient(supabaseUrl, supabaseKey)
+
+function ModalDialog(props) {
+  let { title, children } = props
+
+  // Handle interacting outside the dialog and pressing
+  // the Escape key to close the modal.
+  let ref = React.useRef()
+  let { overlayProps, underlayProps } = useOverlay(props, ref)
+
+  // Prevent scrolling while the modal is open, and hide content
+  // outside the modal from screen readers.
+  usePreventScroll()
+  let { modalProps } = useModal()
+
+  // Get props for the dialog and its title
+  let { dialogProps, titleProps } = useDialog(props, ref)
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        zIndex: 100,
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      {...underlayProps}
+    >
+      <FocusScope contain restoreFocus autoFocus>
+        <div
+          {...overlayProps}
+          {...dialogProps}
+          {...modalProps}
+          ref={ref}
+          style={{
+            background: 'white',
+            color: 'black',
+            padding: 30
+          }}
+        >
+          <h3 {...titleProps} style={{ marginTop: 0 }}>
+            {title}
+          </h3>
+          {children}
+        </div>
+      </FocusScope>
+    </div>
+  )
+}
+
+function Modal({}) {
+  return
+}
 
 /*
  * juration - a natural language duration parser
@@ -444,6 +515,9 @@ function Home() {
   const [viewIssuesFrom, setViewIssuesFrom] = useState('DAY')
   const [syncBootstrapState, setSyncBootstrapState] = useState([])
   const [onboardingUrl, setOnboardingUrl] = useState(null)
+  const [filterConfig, setFilterConfig] = useState({})
+  const [stage, setStage] = useState('TYPE_SELECTION')
+  const [isLoading, setIsIsLoading] = useState(true)
 
   useEffect(() => {
     socket.on('DONE', function (payload) {
@@ -496,6 +570,8 @@ function Home() {
 
   let filter = (by, key, d) => {
     let results = []
+    log(by)
+    if (!d) return results
     switch (by) {
       case 'CONTENT':
         results = d.filter(x => x.title.includes(key))
@@ -556,6 +632,10 @@ function Home() {
       case 'AUTO_CLOSED':
         // TODO
         break
+      case 'ALL':
+        return d.sort(byCompleted).reverse()
+      default:
+        return d.sort(byCompleted).reverse()
     }
     return results
   }
@@ -575,6 +655,9 @@ function Home() {
     const lastMonth = new Date()
     lastMonth.setHours(0, 0, 0, 0)
     lastMonth.setMonth(lastMonth.getMonth() - 3)
+
+    let { key, type } = filterConfig
+    return setIssues(filter(type, key, syncBootstrapState.Issue))
 
     switch (viewIssuesFrom) {
       case 'DAY':
@@ -632,9 +715,13 @@ function Home() {
     }
   }
 
+  // useEffect(() => {
+  //   handleIssueStateChange()
+  // }, [viewIssuesFrom])
+
   useEffect(() => {
     handleIssueStateChange()
-  }, [viewIssuesFrom])
+  }, [filterConfig])
 
   useEffect(() => {
     handleIssueStateChange()
@@ -656,9 +743,10 @@ function Home() {
           let syncBootstrapData
           const { accessToken } = user
           try {
-            syncBootstrapData = await fetchSyncBootstrapDataFromServer({
-              accessToken
-            })
+            // syncBootstrapData = await fetchSyncBootstrapDataFromServer({
+            //   accessToken
+            // })
+            syncBootstrapData = syncBootstrapMockData
           } catch (e) {
             console.error(
               'Something went wrong getting syncBoostrap data from Linear',
@@ -692,6 +780,7 @@ function Home() {
       const log = console.log
       // Map logged issues to Linear issues
       const loggedIssues = await getLoggedIssues()
+      if (!loggedIssues) return
       loggedIssues.forEach(x => {
         const index = all.Issue.findIndex(y => y.id === x.id)
         if (index != -1) {
@@ -700,20 +789,25 @@ function Home() {
       })
       //log(all.Issue.find(x => x.id === 'b6efd855-67de-45fa-810d-b70ef1826d68'))
       setSyncBootstrapState(all)
+      setIsIsLoading(false)
     }
   }, [])
 
   const [currentHoverIndex, setCurrentHoverIndex] = useState(-1)
+  const [filterStage, setFilterStage] = useState(-1)
+  //const [isEditing, setIsEditing] = useState(false)
 
   // Keyboard shortcuts
   useEventListener('keydown', function handler({ key }) {
     //if (currentHoverIndex < 0) return
+    //log(key)
     //console.log(key)
     switch (key) {
       case 't':
         setShowPopper(true)
         // HACK
         setTimeout(() => [inputRef.current.focus()], 0)
+        break
       case 'j':
         setCurrentHoverIndex(prev => {
           //console.log(prev)
@@ -724,6 +818,17 @@ function Home() {
           //console.log(prev)
           return prev - 1
         })
+        break
+      case 'f':
+        // const isEditing = filterStage != -1
+
+        // if (!isEditing) {
+        //   setFilterStage(0)
+        //   // HACK to clear input when we hit f
+        //   setTimeout(() => firstStageInput?.current?.focus())
+        // }
+        break
+      //firstStageInput?.current?.focus()
       case 'Enter':
         if (!inputValue) return
         setShowPopper(false)
@@ -735,10 +840,24 @@ function Home() {
         setInputValue('')
         console.log(issues[hoveredRowIndex])
         logIssue(issues[hoveredRowIndex]).then(console.log)
-
+        break
       case 'Escape':
         setShowPopper(false)
         setInputValue('')
+        if (filterStage == 0) {
+          setFilterStage(-1)
+        } else if (filterStage == 1) {
+          setFilterStage(0)
+        }
+        break
+      default:
+        // Log time when hovering
+        if (hoveredRowIndex > 0) {
+          //setShowPopper(true)
+          //if (!inputRef?.current?.value) inputRef.current.value = key
+          //setTimeout(() => [inputRef.current.focus()], 0)
+        }
+        break
     }
   })
 
@@ -817,6 +936,60 @@ function Home() {
   const inputRef = useRef()
 
   const [inputValue, setInputValue] = useState(null)
+  const [filterBy, setFilterBy] = useState(null)
+  const firstStageInput = useRef()
+  const firstStageContainerRef = useRef()
+  const secondStageContainerRef = useRef()
+
+  useEventListener('click', e => {
+    // close launcher on click outside
+    // if (
+    //   !e.target.contains(firstStageContainerRef.current) &&
+    //   !e.target.contains(secondStageContainerRef.current)
+    // )
+    //   setFilterStage(-1)
+  })
+
+  const convertFilterByLinearType = type => {
+    switch (type) {
+      case 'team':
+        return 'Team'
+      case 'project':
+        return 'Project'
+      case 'label':
+        return ''
+      default:
+        return 'Project'
+    }
+  }
+
+  let state = useOverlayTriggerState({})
+  let openButtonRef = React.useRef()
+  let closeButtonRef = React.useRef()
+  // useButton ensures that focus management is handled correctly,
+  // across all browsers. Focus is restored to the button once the
+  // dialog closes.
+  let { buttonProps: openButtonProps } = useButton(
+    {
+      onPress: () => state.open()
+    },
+    openButtonRef
+  )
+
+  let { buttonProps: closeButtonProps } = useButton(
+    {
+      onPress: () => state.close()
+    },
+    closeButtonRef
+  )
+
+  // cmd+f find
+  useIsHotkeyPressed('f') &&
+    useIsHotkeyPressed('cmd') &&
+    useHotkeys('cmd+f', () => state.open())
+
+  // f filter
+  useIsHotkeyPressed('f') && useHotkeys('f', () => log('f'))
 
   return (
     <Fragment>
@@ -833,37 +1006,275 @@ function Home() {
         >
           Login with Linear
         </a>
+      ) : isLoading ? (
+        <div>loading</div>
       ) : (
         <div>
-          <div className="header border-2 border-gray-100 flex justify-between py-4 px-4 text-gray-600">
-            <div className="flex ">
-              <div className="header-burger-menu mr-4">
+          <OverlayProvider>
+            <>
+              <button {...openButtonProps} ref={openButtonRef}>
+                Open Dialog
+              </button>
+              {state.isOpen && (
+                <OverlayContainer>
+                  <ModalDialog
+                    title="Enter your name"
+                    isOpen
+                    onClose={state.close}
+                    isDismissable
+                  >
+                    <form
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                    >
+                      <label>
+                        First Name: <input placeholder="John" />
+                      </label>
+                      <label>
+                        Last Name: <input placeholder="Smith" />
+                      </label>
+                      <button
+                        {...closeButtonProps}
+                        ref={closeButtonRef}
+                        style={{ marginTop: 10 }}
+                      >
+                        Submit
+                      </button>
+                    </form>
+                  </ModalDialog>
+                </OverlayContainer>
+              )}
+            </>
+          </OverlayProvider>
+
+          <div>
+            {filterStage === 0 ? (
+              <div
+                ref={firstStageContainerRef}
+                style={{
+                  boxShadow: 'rgba(0, 0, 0, 0.2) 0px 16px 60px'
+                }}
+                className="z-50 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
+              >
+                <div className="border-b-2 border-gray-50 mb-3">
+                  {/* <div className="px-2 py-4  ml-3 mt-3">
+                  <input
+                    ref={firstStageInput}
+                    className="outline-none text-lg "
+                    placeholder="Filter by..."
+                  />
+                </div> */}
+                </div>
+
+                {/* // TODO scroll on */}
+                <div className="filter-table flex-col overflow-x-scroll">
+                  {[
+                    // 'status',
+                    // 'priority',
+                    // 'assigne',
+                    // 'subscriber',
+                    // 'creator',
+                    // 'estimate',
+                    // 'label',
+                    // 'cycle',
+                    'project',
+                    // 'milestone',
+                    // 'relationship',
+                    'team',
+                    'all'
+                    // 'due_date',
+                    // 'auto_closed'
+                  ].map(type => (
+                    <div>
+                      <a
+                        onClick={e => {
+                          if (type === 'all') {
+                            setFilterStage(-1)
+                            setFilterConfig({})
+                            return setFilterBy(type)
+                          }
+
+                          setFilterStage(1)
+                          setFilterBy(type)
+                        }}
+                        href="#"
+                        className="filter-row flex hover:bg-gray-100 transition-all py-2 px-2 rounded-md text-gray-500 text-sm items-center mx-2"
+                      >
+                        <div className="filter-icon mx-2">
+                          <svg
+                            width="20"
+                            height="20"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="1.5"
+                              d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
+                            ></path>
+                          </svg>
+                        </div>
+                        <div className="filter-content">Filter by {type}</div>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : filterStage === 1 ? (
+              <>
+                <div className="flex z-50 fixed top-0 bg-white rounded-lg left-10 flex-col ">
+                  <div className="pill flex rounded-md bg-white text-xs text-gray-400 py-1 px-2 mx-3 mt-3">
+                    <div className="mr-1">{filterBy}</div>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    boxShadow: 'rgba(0, 0, 0, 0.2) 0px 16px 60px'
+                  }}
+                  className="z-40 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
+                >
+                  {false && (
+                    <div className="border-b-2 border-gray-50 mb-3">
+                      <div className="px-2 py-4  ml-3 mt-3 flex items-center">
+                        <a
+                          href="#"
+                          onClick={() => {
+                            setFilterStage(0)
+                          }}
+                          className="bg-gray-100 w-6 h-6 rounded-full mr-2 flex items-center pl-1 text-gray-400"
+                        >
+                          <svg
+                            width="16"
+                            height="16"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="1.5"
+                              d="M10.25 6.75L4.75 12L10.25 17.25"
+                            ></path>
+                            <path
+                              stroke="currentColor"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="1.5"
+                              d="M19.25 12H5"
+                            ></path>
+                          </svg>
+                        </a>
+                        <input
+                          className="outline-none text-lg "
+                          placeholder={`Filter by ${filterBy}`}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {/* // TODO scroll on */}
+                  <div className="filter-table flex-col overflow-x-scroll my-2">
+                    {syncBootstrapState[
+                      convertFilterByLinearType(filterBy)
+                    ]?.map(({ id, name }) => (
+                      <div>
+                        <a
+                          onClick={e => {
+                            setFilterConfig({
+                              key: id,
+                              type: filterBy.toUpperCase()
+                            })
+                            setFilterStage(-1)
+                          }}
+                          href="#"
+                          className="filter-row flex hover:bg-gray-100 transition-all py-2 px-2 rounded-md text-gray-500 text-sm items-center mx-2"
+                        >
+                          <div className="filter-icon mx-2">
+                            <svg
+                              width="20"
+                              height="20"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
+                              ></path>
+                            </svg>
+                          </div>
+                          <div className="filter-content">
+                            View issues from {name}
+                          </div>
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              ''
+            )}
+
+            <div className="header border-2 border-gray-100 flex justify-between py-4 px-4 text-gray-600">
+              <div className="flex ">
+                <div className="header-burger-menu mr-4">
+                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                    <path
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M4.75 5.75H19.25"
+                    ></path>
+                    <path
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M4.75 18.25H19.25"
+                    ></path>
+                    <path
+                      stroke="currentColor"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M4.75 12H19.25"
+                    ></path>
+                  </svg>
+                </div>
+                <div className="header-show">
+                  {filterBy}
+                  {
+                    syncBootstrapState[
+                      convertFilterByLinearType(
+                        filterConfig.type?.toLowerCase()
+                      )
+                    ]?.find(x => x.id === filterConfig.key)?.name
+                  }
+                </div>
+              </div>
+
+              <button onClick={e => setFilterStage(0)}>
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
                   <path
                     stroke="currentColor"
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="1.5"
-                    d="M4.75 5.75H19.25"
-                  ></path>
-                  <path
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M4.75 18.25H19.25"
-                  ></path>
-                  <path
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M4.75 12H19.25"
+                    d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
                   ></path>
                 </svg>
-              </div>
-              <div className="header-show">Inbox</div>
-            </div>
+              </button>
+
+              {/*
             <div className="header-calendar">
               <Menu as="div" className="relative inline-block text-left ml-2">
                 {({ open }) => (
@@ -886,9 +1297,57 @@ function Home() {
                     >
                       <Menu.Items
                         static
-                        className="z-40 origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+                        className="z-40 origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden"
                       >
                         <div className="py-1">
+                          {stage === 'TYPE_SELECTION' ? (
+                            <Menu.Item>
+                              {({ active }) => (
+                                <a
+                                  onClick={() => setStage('KEY_SELECTION')}
+                                  href="#"
+                                  className={classNames(
+                                    active
+                                      ? 'bg-gray-100 text-gray-900'
+                                      : 'text-gray-700',
+                                    'block px-4 py-2 text-sm'
+                                  )}
+                                >
+                                  By Team
+                                </a>
+                              )}
+                            </Menu.Item>
+                          ) : stage === 'KEY_SELECTION' ? (
+                            syncBootstrapState?.Team?.map(({ name, id }) => {
+                              return (
+                                <Menu.Item>
+                                  {({ active }) => (
+                                    <a
+                                      onClick={() =>
+                                        setFilterConfig({
+                                          key: id,
+                                          type: 'TEAM'
+                                        })
+                                      }
+                                      href="#"
+                                      className={classNames(
+                                        active
+                                          ? 'bg-gray-100 text-gray-900'
+                                          : 'text-gray-700',
+                                        'block px-4 py-2 text-sm'
+                                      )}
+                                    >
+                                      {name}
+                                    </a>
+                                  )}
+                                </Menu.Item>
+                              )
+                            })
+                          ) : (
+                            ''
+                          )}
+
+                          {/* 
                           <Menu.Item>
                             {({ active }) => (
                               <a
@@ -937,7 +1396,6 @@ function Home() {
                               </a>
                             )}
                           </Menu.Item>
-
                           <Menu.Item>
                             {({ active }) => (
                               <a
@@ -954,7 +1412,6 @@ function Home() {
                               </a>
                             )}
                           </Menu.Item>
-
                           <Menu.Item>
                             {({ active }) => (
                               <a
@@ -970,63 +1427,266 @@ function Home() {
                                 All
                               </a>
                             )}
-                          </Menu.Item>
-                        </div>
+                          </Menu.Item>*/}
+              {/*</div>
                       </Menu.Items>
                     </Transition>
                   </>
                 )}
               </Menu>
+            </div>*/}
             </div>
-          </div>
 
-          <div className="task-list text-gray-700 ">
-            <List
-              itemCount={issues.length}
-              itemData={{ ...itemData, ...hov }}
-              itemSize={40}
-              height={height ?? 100}
-              width={width ?? 100}
-              ref={ref}
-            >
-              {Row}
-            </List>
-          </div>
+            <SubHeader
+              setIssues={setIssues}
+              syncBootstrapState={syncBootstrapState}
+            />
 
-          {showPopper ? (
-            <div
-              ref={popperElement}
-              className="py-1 outline-none bg-white"
-              style={{
-                ...styles.popper,
-                color: '#eee',
-                borderRadius: '8px',
-                background: '#111'
-                //display: showPopper ? 'flex' : 'none'
-              }}
-              {...attributes.popper}
-            >
-              <input
-                value={inputValue}
-                onChange={e => setInputValue(e.target.value)}
-                className="outline-none bg-white text-sm text-gray-600 w-40 px-4 py-0"
+            <div className="task-list text-gray-700 ">
+              <List
+                itemCount={issues.length}
+                itemData={{ ...itemData, ...hov }}
+                itemSize={40}
+                height={height - 100 ?? 100}
+                width={width ?? 100}
+                ref={ref}
+              >
+                {Row}
+              </List>
+            </div>
+
+            {showPopper ? (
+              <div
+                ref={popperElement}
+                className="py-1 outline-none bg-white"
                 style={{
+                  //...styles.popper,
+                  left: '50%',
+                  top: '90%',
+                  position: 'absolute',
+                  transform: 'translate(-50%, -50%)',
                   color: '#eee',
                   borderRadius: '8px',
                   background: '#111'
                   //display: showPopper ? 'flex' : 'none'
                 }}
-                ref={inputRef}
-                //placeholder="Time taken. e.g 1h 20m"
-              />
-              <div ref={setArrowElement} style={styles.arrow} />
-            </div>
-          ) : (
-            ''
-          )}
+                {...attributes.popper}
+              >
+                <input
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  className="outline-none bg-white text-sm text-gray-600 w-50 px-4 py-0"
+                  style={{
+                    color: '#eee',
+                    borderRadius: '8px',
+                    background: '#111'
+                    //display: showPopper ? 'flex' : 'none'
+                  }}
+                  placeholder="Track time e.g 1h 10m"
+                  ref={inputRef}
+                  //placeholder="Time taken. e.g 1h 20m"
+                />
+                <div ref={setArrowElement} style={styles.arrow} />
+              </div>
+            ) : (
+              ''
+            )}
+          </div>
         </div>
       )}
     </Fragment>
+  )
+}
+
+function generateGetBoundingClientRect(x = 0, y = 0) {
+  return () => ({
+    width: 0,
+    height: 0,
+    top: y,
+    right: x,
+    bottom: y,
+    left: x
+  })
+}
+
+const virtualElement = {
+  getBoundingClientRect: generateGetBoundingClientRect()
+}
+
+export const SubHeader = ({ syncBootstrapState, setIssues }) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const [teamName, setTeamName] = useState(null)
+
+  const [isProjectOpen, setIsProjectOpen] = useState(false)
+  const [projectName, setProjectName] = useState(null)
+
+  const handleClick = ({ id, name }) => {
+    setTeamName(name)
+    setIssues(() => syncBootstrapState.Issue.filter(x => x.teamId === id))
+    setIsOpen(false)
+    setProjectName(null)
+    setTeamSearchValue(null)
+    setTeams(syncBootstrapState.Team)
+  }
+
+  const handleProjectClick = ({ id, name }) => {
+    setProjectName(name)
+    setIssues(() => syncBootstrapState.Issue.filter(x => x.projectId === id))
+    setIsProjectOpen(false)
+    setTeamName(null)
+  }
+
+  const [referenceElement, setReferenceElement] = useState(null)
+  const [popperElement, setPopperElement] = useState(null)
+  const { styles, attributes } = usePopper(referenceElement, popperElement)
+
+  const [projectReferenceElement, setProjectReferenceElement] = useState(null)
+  const [projectPopperElement, setProjectPopperElement] = useState(null)
+  const { styles: projectStyles, attributes: projectAttributes } = usePopper(
+    projectReferenceElement,
+    projectPopperElement
+  )
+
+  // Esc to close dialog
+  // Enter to search top result
+  useEventListener('keyup', ({ key }) => {
+    console.log(key)
+    let isSearching = teamSearchValue != null
+    if (isSearching && key === 'Enter' && teams.length) {
+      handleClick(teams[0])
+    } else if (isSearching && key === 'Escape') {
+      setIsOpen(false)
+    }
+  })
+
+  // Clickoutside close
+  useEventListener('click', ({ target }) => {
+    //if (target.contains(referenceElement.current)) return
+    //if (!target?.contains(popperElement?.current)) return setIsOpen(false)
+  })
+
+  const [teamSearchValue, setTeamSearchValue] = useState(null)
+  const [teams, setTeams] = useState()
+  useEffect(() => {
+    if (!teamSearchValue) return setTeams(syncBootstrapState.Team)
+    setTeams(
+      syncBootstrapState.Team.filter(x =>
+        x?.name?.toLowerCase().includes(teamSearchValue?.trim()?.toLowerCase())
+      )
+    )
+  }, [teamSearchValue])
+
+  useEffect(() => {
+    setTeams(syncBootstrapState.Team)
+  }, [])
+
+  return (
+    <>
+      <div className="flex border-b-2 border-gray-50 px-5 py-2">
+        <button
+          ref={setReferenceElement}
+          onClick={() => {
+            setIsOpen(p => !p)
+            setIsProjectOpen(false)
+          }}
+          className="flex items-center border-gray-100 border-2  px-2 py-1 rounded-md flex-shrink-0"
+        >
+          <div className="mr-2">{teamName ?? 'Teams'}</div>
+          <svg width="13" height="9" viewBox="0 0 13 9" fill="currentcolor">
+            <path
+              d="M10.1611 0.314094L5.99463 4.48054L1.82819 0.314094C1.4094 -0.104698 0.732886 -0.104698 0.314094 0.314094C-0.104698 0.732886 -0.104698 1.4094 0.314094 1.82819L5.24295 6.75705C5.66175 7.17584 6.33825 7.17584 6.75705 6.75705L11.6859 1.82819C12.1047 1.4094 12.1047 0.732886 11.6859 0.314094C11.2671 -0.0939598 10.5799 -0.104698 10.1611 0.314094Z"
+              transform="translate(0.77832 0.998535)"
+            ></path>
+          </svg>
+        </button>
+
+        <button
+          ref={setProjectReferenceElement}
+          onClick={() => {
+            setIsProjectOpen(p => !p)
+            setIsOpen(false)
+          }}
+          className="flex items-center border-gray-100 border-2  px-2 py-1 rounded-md flex-shrink-0"
+        >
+          <div className="mr-2">{projectName ?? 'Projects'}</div>
+          <svg width="13" height="9" viewBox="0 0 13 9" fill="currentcolor">
+            <path
+              d="M10.1611 0.314094L5.99463 4.48054L1.82819 0.314094C1.4094 -0.104698 0.732886 -0.104698 0.314094 0.314094C-0.104698 0.732886 -0.104698 1.4094 0.314094 1.82819L5.24295 6.75705C5.66175 7.17584 6.33825 7.17584 6.75705 6.75705L11.6859 1.82819C12.1047 1.4094 12.1047 0.732886 11.6859 0.314094C11.2671 -0.0939598 10.5799 -0.104698 10.1611 0.314094Z"
+              transform="translate(0.77832 0.998535)"
+            ></path>
+          </svg>
+        </button>
+
+        <div className="flex-1"></div>
+      </div>
+
+      {isOpen && (
+        <ul
+          className="text-sm z-50 border-2 rounded-md border-gray-100 py-0.5 bg-white"
+          ref={setPopperElement}
+          style={styles.popper}
+          {...attributes.popper}
+        >
+          <li>
+            <input
+              autoFocus
+              placeholder="Search a team"
+              value={teamSearchValue}
+              className="px-4 py-1 outline-none border-b-2 border-gray-50"
+              onChange={({ target: { value } }) => {
+                setTeamSearchValue(value)
+              }}
+            />
+          </li>
+          {teams.map(({ name, id }) => (
+            <li
+              onClick={() => handleClick({ id, name })}
+              className="flex items-center px-5 py-1 hover:bg-gray-100 transition-all "
+            >
+              <div className="mr-3">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="#6B6F76">
+                  <path d="M1 3C1 1.89543 1.89543 1 3 1H9C10.1046 1 11 1.89543 11 3V3.5H6C4.61929 3.5 3.5 4.61929 3.5 6V11H3C1.89543 11 1 10.1046 1 9V3Z"></path>
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M7 5C5.89543 5 5 5.89543 5 7V13C5 14.1046 5.89543 15 7 15H13C14.1046 15 15 14.1046 15 13V7C15 5.89543 14.1046 5 13 5H7ZM10 10C10.9665 10 11.5 9.2165 11.5 8.25C11.5 7.2835 10.9665 6.5 10 6.5C9.0335 6.5 8.5 7.2835 8.5 8.25C8.5 9.2165 9.0335 10 10 10ZM7 12.5616C7 11.5144 7.9841 10.746 9 11C9.47572 11.7136 10.5243 11.7136 11 11C12.0159 10.746 13 11.5144 13 12.5616V13.0101C13 13.2806 12.7806 13.5 12.5101 13.5H7.48995C7.21936 13.5 7 13.2806 7 13.0101V12.5616Z"
+                  ></path>
+                </svg>
+              </div>
+              <div>{name}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {isProjectOpen && (
+        <ul
+          className="text-sm z-50 border-2 rounded-md border-gray-100 py-0.5 bg-white"
+          ref={setProjectPopperElement}
+          style={projectStyles.popper}
+          {...projectAttributes.popper}
+        >
+          {syncBootstrapState.Project.map(({ name, id }) => (
+            <li
+              onClick={() => handleProjectClick({ id, name })}
+              className="flex items-center px-5 py-1 hover:bg-gray-100 transition-all"
+            >
+              <div className="mr-3">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="#6B6F76">
+                  <path d="M1 3C1 1.89543 1.89543 1 3 1H9C10.1046 1 11 1.89543 11 3V3.5H6C4.61929 3.5 3.5 4.61929 3.5 6V11H3C1.89543 11 1 10.1046 1 9V3Z"></path>
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M7 5C5.89543 5 5 5.89543 5 7V13C5 14.1046 5.89543 15 7 15H13C14.1046 15 15 14.1046 15 13V7C15 5.89543 14.1046 5 13 5H7ZM10 10C10.9665 10 11.5 9.2165 11.5 8.25C11.5 7.2835 10.9665 6.5 10 6.5C9.0335 6.5 8.5 7.2835 8.5 8.25C8.5 9.2165 9.0335 10 10 10ZM7 12.5616C7 11.5144 7.9841 10.746 9 11C9.47572 11.7136 10.5243 11.7136 11 11C12.0159 10.746 13 11.5144 13 12.5616V13.0101C13 13.2806 12.7806 13.5 12.5101 13.5H7.48995C7.21936 13.5 7 13.2806 7 13.0101V12.5616Z"
+                  ></path>
+                </svg>
+              </div>
+              <div>{name}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
