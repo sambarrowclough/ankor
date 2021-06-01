@@ -7,7 +7,7 @@ import useEventListener from '@use-it/event-listener'
 import memoize from 'memoize-one'
 import { FixedSizeList as List, areEqual } from 'react-window'
 import { createClient } from '@supabase/supabase-js'
-import { usePopper } from 'react-popper'
+//import { usePopper } from 'react-popper'
 import * as _ from 'lodash'
 import { useHotkeys, useIsHotkeyPressed } from 'react-hotkeys-hook'
 import { useOverlayTriggerState } from '@react-stately/overlays'
@@ -925,14 +925,14 @@ function Home() {
   const [virtualElement, setVirtualElement] = useState({
     getBoundingClientRect: generateGetBoundingClientRect()
   })
-  const [showPopper, setShowPopper] = useState(false)
-  const { styles, attributes, update } = usePopper(
-    virtualElement,
-    popperElement.current,
-    {
-      modifiers: [{ name: 'arrow', options: { element: arrowElement } }]
-    }
-  )
+  //const [showPopper, setShowPopper] = useState(false)
+  // const { styles, attributes, update } = usePopper(
+  //   virtualElement,
+  //   popperElement.current,
+  //   {
+  //     modifiers: [{ name: 'arrow', options: { element: arrowElement } }]
+  //   }
+  // )
   const inputRef = useRef()
 
   const [inputValue, setInputValue] = useState(null)
@@ -1538,36 +1538,13 @@ export const SubHeader = ({ syncBootstrapState, setIssues }) => {
 
   const [referenceElement, setReferenceElement] = useState(null)
   const [popperElement, setPopperElement] = useState(null)
-  const { styles, attributes } = usePopper(referenceElement, popperElement, {
-    placement: 'bottom-start',
-    modifiers: [
-      {
-        name: 'offset',
-        options: {
-          // TODO: positions towards the bottom should have -140
-          offset: [0, 5]
-        }
-      }
-    ]
-  })
+  const { styles, attributes } = usePopper(referenceElement, popperElement)
 
   const [projectReferenceElement, setProjectReferenceElement] = useState(null)
   const [projectPopperElement, setProjectPopperElement] = useState(null)
   const { styles: projectStyles, attributes: projectAttributes } = usePopper(
     projectReferenceElement,
-    projectPopperElement,
-    {
-      placement: 'bottom-start',
-      modifiers: [
-        {
-          name: 'offset',
-          options: {
-            // TODO: positions towards the bottom should have -140
-            offset: [0, 5]
-          }
-        }
-      ]
-    }
+    projectPopperElement
   )
 
   // Esc to close dialog
