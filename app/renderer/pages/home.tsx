@@ -373,16 +373,6 @@ try {
 } catch (e) {
   alert(str(e))
 }
-//store.delete('user')
-
-// store.set('unicorn', '🦄')
-// console.log(store.get('unicorn'))
-// //=> '🦄'
-
-// // Use dot-notation to access nested properties
-// store.set('foo.bar', true)
-//console.log(store.get('user'))
-//=> {bar: true}
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -391,9 +381,6 @@ function uuidv4() {
     return v.toString(16)
   })
 }
-
-// store.delete('unicorn')
-// console.log(store.get('unicorn'))
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
@@ -1013,68 +1000,6 @@ function Home() {
   // f filter
   useIsHotkeyPressed('f') && useHotkeys('f', () => log('f'))
 
-  // useEventListener('keydown', ({ key }) => {
-  //   log('KEYDOWN: APP')
-
-  //   if (
-  //     key.toLowerCase() === 'i' &&
-  //     !isVisible &&
-  //     firstBtn &&
-  //     !showTimeTrackerLauncher
-  //   ) {
-  //     console.log('Shortcut: I')
-  //     //setShortcut('V')
-  //     setItems([
-  //       { type: 'header', name: 'Quicklinks' },
-  //       { name: 'All issues', type: 'all', id: uuid() },
-  //       { name: 'My issues', type: 'my', id: uuid() },
-  //       { type: 'header', name: 'Project' },
-  //       ...syncBootstrapState.Project.map(x => ({
-  //         ...x,
-  //         type: 'Project'
-  //       })),
-  //       { type: 'header', name: 'Team' },
-  //       ...syncBootstrapState.Team.map(x => ({
-  //         ...x,
-  //         type: 'Team'
-  //       }))
-  //     ])
-  //     setPosition(firstBtn.current.getBoundingClientRect())
-  //     setIsVisible(true)
-
-  //     return
-  //   }
-
-  //   // ESC
-  //   if (key === 'Escape') {
-  //     if (showTimeTrackerLauncher) {
-  //       setShowTimeTrackerLauncher(false)
-  //     }
-
-  //     if (isReportOpen) {
-  //       setIsReportOpen(false)
-  //     }
-
-  //     return
-  //   }
-  // })
-  // useButton ensures that focus management is handled correctly,
-  // across all browsers. Focus is restored to the button once the
-  // dialog closes.
-  let { buttonProps: openButtonProps } = useButton(
-    {
-      onPress: () => state.open()
-    },
-    openButtonRef
-  )
-
-  let { buttonProps: closeButtonProps } = useButton(
-    {
-      onPress: () => state.close()
-    },
-    closeButtonRef
-  )
-
   return (
     <Fragment>
       <Head>
@@ -1094,45 +1019,6 @@ function Home() {
         <div>loading</div>
       ) : (
         <>
-          {/* <OverlayProvider>
-            <>
-              <button {...openButtonProps} ref={openButtonRef}>
-                Open Dialog
-              </button>
-              {state.isOpen && (
-                <OverlayContainer>
-                  <ModalDialog
-                    title="Enter your name"
-                    isOpen
-                    onClose={state.close}
-                    isDismissable
-                  >
-                    <form
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column'
-                      }}
-                    >
-                      <label>
-                        First Name: <input placeholder="John" />
-                      </label>
-                      <label>
-                        Last Name: <input placeholder="Smith" />
-                      </label>
-                      <button
-                        {...closeButtonProps}
-                        ref={closeButtonRef}
-                        style={{ marginTop: 10 }}
-                      >
-                        Submit
-                      </button>
-                    </form>
-                  </ModalDialog>
-                </OverlayContainer>
-              )}
-            </>
-          </OverlayProvider>
- */}
           <div>
             {filterStage === 0 ? (
               <div
@@ -1142,16 +1028,6 @@ function Home() {
                 }}
                 className="z-50 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
               >
-                <div className="border-b-2 border-gray-50 mb-3">
-                  {/* <div className="px-2 py-4  ml-3 mt-3">
-                  <input
-                    ref={firstStageInput}
-                    className="outline-none text-lg "
-                    placeholder="Filter by..."
-                  />
-                </div> */}
-                </div>
-
                 {/* // TODO scroll on */}
                 <div className="filter-table flex-col overflow-x-scroll">
                   {[
@@ -1308,45 +1184,6 @@ function Home() {
             )}
 
             <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
-              <div className="flex items-center mr-2">
-                <div className="header-burger-menu mr-4 items-center">
-                  {/* <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
-                    <path
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M4.75 5.75H19.25"
-                    ></path>
-                    <path
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M4.75 18.25H19.25"
-                    ></path>
-                    <path
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M4.75 12H19.25"
-                    ></path>
-                  </svg>
-                 */}
-                </div>
-                {/* <div className="header-show">
-                  {filterBy}
-                  {
-                    syncBootstrapState[
-                      convertFilterByLinearType(
-                        filterConfig.type?.toLowerCase()
-                      )
-                    ]?.find(x => x.id === filterConfig.key)?.name
-                  }
-                </div> */}
-              </div>
-
               <Button
                 ref={firstBtn}
                 // onClick={_ => {
@@ -1374,80 +1211,12 @@ function Home() {
 
               <div className="flex-1"></div>
 
-              {/* <button
-                className="border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center mr-2"
-                onClick={_ => alert(1)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-                <span className="ml-1 text-xs">Filter</span>
-              </button>
-              <button
-                className="mr-2 border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center "
-                onClick={_ => alert(1)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-                <span className="ml-1 text-xs">Group</span>
-              </button>
-              <button
-                className="mr-2 border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center "
-                onClick={_ => alert(1)}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z" />
-                </svg>
-                <span className="ml-1 text-xs">Sort</span>
-              </button>
-               */}
-
               <Button
                 prefix={<PieChartIcon />}
                 shortcut={'R'}
                 text={'Report'}
                 onClick={_ => setIsReportOpen(p => !p)}
               />
-
-              {/* <button
-                className="fill-current text-gray-500"
-                onClick={e => setFilterStage(0)}
-              >
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
-                  <path
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
-                  ></path>
-                </svg>
-              </button>
-             */}
             </div>
 
             <div className="relative">
@@ -1517,20 +1286,6 @@ const TrackTimeLauncher = ({
   showTimeTrackerLauncher,
   setShowTimeTrackerLauncher
 }) => {
-  //log(selectedTask)
-
-  // const handlers = {
-  //   close: () => {
-  //     log(1111)
-  //   }
-  // }
-
-  // return (
-  //   <HotKeys keyMap={{ close: 'esc' }} handlers={handlers}>
-  //     <div>hello</div>
-  //   </HotKeys>
-  // )
-
   useHotkeys(
     'esc',
     () => {
@@ -1554,42 +1309,19 @@ const TrackTimeLauncher = ({
     >
       {selectedTask?.title && (
         <div className="flex mb-2">
-          <div
-            // style={{
-            //   overflow: 'hidden',
-            //   lineHeight: 'normal',
-            //   textAlign: 'left',
-            //   whiteSpace: 'nowrap',
-            //   overflow: 'hidden',
-            //   textOverflow: 'ellipsis',
-            //   color: 'rgb(40, 42, 48)',
-            //   fontWeight: 500,
-            //   fontSize: '13px',
-            //   flexShrink: 1,
-            //   maxWidth: '251px'
-            // }}
-            className="max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap text-xs text-gray-400 px-2 py-1 mx-4 bg-gray-100 rounded"
-          >
+          <div className="max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap text-xs text-gray-400 px-2 py-1 mx-4 bg-gray-100 rounded">
             {selectedTask.title}
           </div>
           <div className="flex-1"></div>
         </div>
       )}
       <input
-        // onFocus={_ => setTrackTimeLauncherFocus(true)}
-        // onBlur={_ => setTrackTimeLauncherFocus(false)}
         autoFocus
         ref={inputRef}
         value={inputValue}
         onChange={e => setInputValue(e.target.value)}
-        // defaultValue={
-        //   selectedTask.duration
-        //     ? juration().humanize(selectedTask.duration)
-        //     : ''
-        // }
         className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
         placeholder="Track time e.g 1h 10m"
-        //placeholder="Time taken. e.g 1h 20m"
       />
     </div>
   ) : (
