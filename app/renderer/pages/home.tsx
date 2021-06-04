@@ -1,11 +1,21 @@
-import React, { useState, useEffect, Fragment, memo, useRef } from 'react'
+import React, {
+  useState,
+  useEffect,
+  Fragment,
+  memo,
+  useRef,
+  forwardRef
+} from 'react'
 import Head from 'next/head'
-import { Menu, Transition } from '@headlessui/react'
 import { socket } from './socket'
 import { ipcRenderer } from 'electron'
 import useEventListener from '@use-it/event-listener'
 import memoize from 'memoize-one'
-import { FixedSizeList as List, areEqual } from 'react-window'
+import {
+  FixedSizeList as FList,
+  VariableSizeList as VList,
+  areEqual
+} from 'react-window'
 import { createClient } from '@supabase/supabase-js'
 import { usePopper } from 'react-popper'
 import * as _ from 'lodash'
@@ -21,7 +31,10 @@ import {
 import { useDialog } from '@react-aria/dialog'
 import { FocusScope } from '@react-aria/focus'
 import { useButton } from '@react-aria/button'
-
+import { useSpring, animated } from 'react-spring'
+import { createPopper } from '@popperjs/core'
+import { GlobalHotKeys, HotKeys } from 'react-hotkeys'
+import loadConfig from 'next/dist/next-server/server/config'
 const str = d => JSON.stringify(d)
 const log = console.log
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
@@ -354,8 +367,12 @@ const ClockIcon = () => (
 )
 
 const Store = require('electron-store')
-
-const store = new Store()
+let store
+try {
+  store = new Store()
+} catch (e) {
+  alert(str(e))
+}
 //store.delete('user')
 
 // store.set('unicorn', '🦄')
@@ -510,6 +527,16 @@ const createItemData = memoize((items, toggleItemActive) => ({
   toggleItemActive
 }))
 
+// https://stackoverflow.com/a/2117523
+function uuid() {
+  return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
+    (
+      c ^
+      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+    ).toString(16)
+  )
+}
+
 function Home() {
   const [issues, setIssues] = useState([])
   const [viewIssuesFrom, setViewIssuesFrom] = useState('DAY')
@@ -518,28 +545,43 @@ function Home() {
   const [filterConfig, setFilterConfig] = useState({})
   const [stage, setStage] = useState('TYPE_SELECTION')
   const [isLoading, setIsIsLoading] = useState(true)
+  const [inputValue, setInputValue] = useState(null)
+  const [currentHoverIndex, setCurrentHoverIndex] = useState(-1)
+  const [filterStage, setFilterStage] = useState(-1)
+  const [arrowElement, setArrowElement] = useState(null)
+  const [virtualElement, setVirtualElement] = useState({
+    getBoundingClientRect: generateGetBoundingClientRect()
+  })
+  const [showPopper, setShowPopper] = useState(false)
+  const [isReportOpen, setIsReportOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState(null)
+  const [filterBy, setFilterBy] = useState(null)
+  const [height, setHeight] = useState(null)
+  const [width, setWidth] = useState(null)
+  const [isVisible, setIsVisible] = useState(false)
+  const [items, setItems] = useState([])
+  const [currentView, setCurrentView] = useState(null)
+  let state = useOverlayTriggerState({})
+  const [showTimeTrackerLauncher, setShowTimeTrackerLauncher] = useState(false)
 
-  useEffect(() => {
-    socket.on('DONE', function (payload) {
-      console.log('CLIENT#received', payload)
-      if (payload && payload.data && payload.data.title) {
-        setSyncBootstrapState(prev => {
-          let temp = { ...prev }
-          temp.Issue.push(payload.data)
-          return temp
-        })
+  let openButtonRef = React.useRef()
+  let closeButtonRef = React.useRef()
+  const ref = React.useRef()
+  const inputRef = useRef()
+  const firstStageInput = useRef()
+  const firstStageContainerRef = useRef()
+  const secondStageContainerRef = useRef()
+  const popperElement = useRef()
 
-        // Emit msg to backend to open up window
-        ipcRenderer.send('DONE', 'DONE')
+  let firstBtn = useRef()
 
-        setCurrentHoverIndex(0)
-      }
-    })
-    // unsubscribe from event for preventing memory leaks
-    return () => {
-      socket.off('DONE')
+  const { styles, attributes, update } = usePopper(
+    virtualElement,
+    popperElement.current,
+    {
+      modifiers: [{ name: 'arrow', options: { element: arrowElement } }]
     }
-  }, [])
+  )
 
   const byCompleted = (a, b) => {
     return a.completedAt < b.completedAt
@@ -570,7 +612,7 @@ function Home() {
 
   let filter = (by, key, d) => {
     let results = []
-    log(by)
+    log(by, key)
     if (!d) return results
     switch (by) {
       case 'CONTENT':
@@ -637,7 +679,7 @@ function Home() {
       default:
         return d.sort(byCompleted).reverse()
     }
-    return results
+    return results.sort(byCompleted).reverse()
   }
 
   const handleIssueStateChange = () => {
@@ -657,7 +699,7 @@ function Home() {
     lastMonth.setMonth(lastMonth.getMonth() - 3)
 
     let { key, type } = filterConfig
-    return setIssues(filter(type, key, syncBootstrapState.Issue))
+    return setIssues(filter(type, key, completedIssues))
 
     switch (viewIssuesFrom) {
       case 'DAY':
@@ -714,10 +756,18 @@ function Home() {
         break
     }
   }
-
-  // useEffect(() => {
-  //   handleIssueStateChange()
-  // }, [viewIssuesFrom])
+  const convertFilterByLinearType = type => {
+    switch (type) {
+      case 'team':
+        return 'Team'
+      case 'project':
+        return 'Project'
+      case 'label':
+        return ''
+      default:
+        return 'Project'
+    }
+  }
 
   useEffect(() => {
     handleIssueStateChange()
@@ -778,6 +828,7 @@ function Home() {
       if (!syncBootstrapData) return alert('Failed to fetch data from Linear!')
       const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
       const log = console.log
+
       // Map logged issues to Linear issues
       const loggedIssues = await getLoggedIssues()
       if (!loggedIssues) return
@@ -787,15 +838,52 @@ function Home() {
           all.Issue[index].duration = x.duration
         }
       })
+
+      // If the task has a startedAt, completedAt, and they have opted in to
+      // do automatic tracking, figure out the time a task took
+      let autoTrackTime = false
+      if (autoTrackTime) {
+        for (let i = 0; i < all.Issue.length; i++) {
+          let issue = all.Issue[i]
+          if (issue.completedAt && issue.startedAt) {
+            let diff = new Date(issue.completedAt) - new Date(issue.startedAt)
+            if (diff > 0) {
+              // TODO: keep getting "Uncaught juration.stringify(): Unable to stringify a non-numeric value"
+              let duration = juration().humanize(Math.round(diff))
+              issue.duration = duration
+              log(duration)
+            }
+          }
+        }
+      }
+
       //log(all.Issue.find(x => x.id === 'b6efd855-67de-45fa-810d-b70ef1826d68'))
       setSyncBootstrapState(all)
       setIsIsLoading(false)
     }
   }, [])
 
-  const [currentHoverIndex, setCurrentHoverIndex] = useState(-1)
-  const [filterStage, setFilterStage] = useState(-1)
-  //const [isEditing, setIsEditing] = useState(false)
+  useEffect(() => {
+    socket.on('DONE', function (payload) {
+      console.log('CLIENT#received', payload)
+      if (payload && payload.data && payload.data.title) {
+        setSyncBootstrapState(prev => {
+          let temp = { ...prev }
+          temp.Issue.push(payload.data)
+          return temp
+        })
+
+        // Emit msg to backend to open up window
+        ipcRenderer.send('DONE', 'DONE')
+
+        setCurrentHoverIndex(0)
+      }
+    })
+    // unsubscribe from event for preventing memory leaks
+    return () => {
+      socket.off('DONE')
+    }
+  }, [])
 
   // Keyboard shortcuts
   useEventListener('keydown', function handler({ key }) {
@@ -829,6 +917,7 @@ function Home() {
         // }
         break
       //firstStageInput?.current?.focus()
+      // TODO: hotkey for timetracker launcher should be in the component
       case 'Enter':
         if (!inputValue) return
         setShowPopper(false)
@@ -840,6 +929,7 @@ function Home() {
         setInputValue('')
         console.log(issues[hoveredRowIndex])
         logIssue(issues[hoveredRowIndex]).then(console.log)
+        setShowTimeTrackerLauncher(false)
         break
       case 'Escape':
         setShowPopper(false)
@@ -861,11 +951,18 @@ function Home() {
     }
   })
 
+  useEffect(() => {
+    if (window) {
+      setHeight(window.innerHeight)
+      setWidth(window.innerWidth)
+    }
+  }, [])
+
   const toggleItemActive = index => {
-    //console.log(index)
+    console.log(index)
   }
 
-  const itemData = createItemData(issues, toggleItemActive)
+  //const itemData = createItemData(issues, toggleItemActive)
   const [hoveredRowIndex, setHoveredRowIndex] = React.useState(null)
 
   const hov = React.useMemo(
@@ -876,19 +973,6 @@ function Home() {
     [hoveredRowIndex]
   )
 
-  const ref = React.useRef()
-
-  const [height, setHeight] = useState(null)
-  const [width, setWidth] = useState(null)
-
-  useEffect(() => {
-    if (window) {
-      setHeight(window.innerHeight)
-      setWidth(window.innerWidth)
-    }
-  }, [])
-
-  const popperElement = useRef(null)
   function generateGetBoundingClientRect(x = 0, y = 0) {
     return () => ({
       width: 0,
@@ -915,57 +999,65 @@ function Home() {
     //update()
 
     //console.log(clientX, clientY, hoveredRowIndex)
-    if (inputRef) {
+    if (inputRef?.current?.focus) {
       // HACK
-      setTimeout(() => [inputRef.current.focus()], 0)
+      //setTimeout(() => [inputRef.current.focus()], 0)
     }
   })
 
-  const [arrowElement, setArrowElement] = useState(null)
-  const [virtualElement, setVirtualElement] = useState({
-    getBoundingClientRect: generateGetBoundingClientRect()
-  })
-  const [showPopper, setShowPopper] = useState(false)
-  const { styles, attributes, update } = usePopper(
-    virtualElement,
-    popperElement.current,
-    {
-      modifiers: [{ name: 'arrow', options: { element: arrowElement } }]
-    }
-  )
-  const inputRef = useRef()
+  // cmd+f find
+  useIsHotkeyPressed('f') &&
+    useIsHotkeyPressed('cmd') &&
+    useHotkeys('cmd+f', () => state.open())
 
-  const [inputValue, setInputValue] = useState(null)
-  const [filterBy, setFilterBy] = useState(null)
-  const firstStageInput = useRef()
-  const firstStageContainerRef = useRef()
-  const secondStageContainerRef = useRef()
+  // f filter
+  useIsHotkeyPressed('f') && useHotkeys('f', () => log('f'))
 
-  useEventListener('click', e => {
-    // close launcher on click outside
-    // if (
-    //   !e.target.contains(firstStageContainerRef.current) &&
-    //   !e.target.contains(secondStageContainerRef.current)
-    // )
-    //   setFilterStage(-1)
-  })
+  // useEventListener('keydown', ({ key }) => {
+  //   log('KEYDOWN: APP')
 
-  const convertFilterByLinearType = type => {
-    switch (type) {
-      case 'team':
-        return 'Team'
-      case 'project':
-        return 'Project'
-      case 'label':
-        return ''
-      default:
-        return 'Project'
-    }
-  }
+  //   if (
+  //     key.toLowerCase() === 'i' &&
+  //     !isVisible &&
+  //     firstBtn &&
+  //     !showTimeTrackerLauncher
+  //   ) {
+  //     console.log('Shortcut: I')
+  //     //setShortcut('V')
+  //     setItems([
+  //       { type: 'header', name: 'Quicklinks' },
+  //       { name: 'All issues', type: 'all', id: uuid() },
+  //       { name: 'My issues', type: 'my', id: uuid() },
+  //       { type: 'header', name: 'Project' },
+  //       ...syncBootstrapState.Project.map(x => ({
+  //         ...x,
+  //         type: 'Project'
+  //       })),
+  //       { type: 'header', name: 'Team' },
+  //       ...syncBootstrapState.Team.map(x => ({
+  //         ...x,
+  //         type: 'Team'
+  //       }))
+  //     ])
+  //     setPosition(firstBtn.current.getBoundingClientRect())
+  //     setIsVisible(true)
 
-  let state = useOverlayTriggerState({})
-  let openButtonRef = React.useRef()
-  let closeButtonRef = React.useRef()
+  //     return
+  //   }
+
+  //   // ESC
+  //   if (key === 'Escape') {
+  //     if (showTimeTrackerLauncher) {
+  //       setShowTimeTrackerLauncher(false)
+  //     }
+
+  //     if (isReportOpen) {
+  //       setIsReportOpen(false)
+  //     }
+
+  //     return
+  //   }
+  // })
   // useButton ensures that focus management is handled correctly,
   // across all browsers. Focus is restored to the button once the
   // dialog closes.
@@ -982,14 +1074,6 @@ function Home() {
     },
     closeButtonRef
   )
-
-  // cmd+f find
-  useIsHotkeyPressed('f') &&
-    useIsHotkeyPressed('cmd') &&
-    useHotkeys('cmd+f', () => state.open())
-
-  // f filter
-  useIsHotkeyPressed('f') && useHotkeys('f', () => log('f'))
 
   return (
     <Fragment>
@@ -1009,8 +1093,8 @@ function Home() {
       ) : isLoading ? (
         <div>loading</div>
       ) : (
-        <div>
-          <OverlayProvider>
+        <>
+          {/* <OverlayProvider>
             <>
               <button {...openButtonProps} ref={openButtonRef}>
                 Open Dialog
@@ -1048,7 +1132,7 @@ function Home() {
               )}
             </>
           </OverlayProvider>
-
+ */}
           <div>
             {filterStage === 0 ? (
               <div
@@ -1223,10 +1307,10 @@ function Home() {
               ''
             )}
 
-            <div className="header border-2 border-gray-100 flex justify-between py-4 px-4 text-gray-600">
-              <div className="flex ">
-                <div className="header-burger-menu mr-4">
-                  <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+            <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
+              <div className="flex items-center mr-2">
+                <div className="header-burger-menu mr-4 items-center">
+                  {/* <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
                     <path
                       stroke="currentColor"
                       stroke-linecap="round"
@@ -1249,8 +1333,9 @@ function Home() {
                       d="M4.75 12H19.25"
                     ></path>
                   </svg>
+                 */}
                 </div>
-                <div className="header-show">
+                {/* <div className="header-show">
                   {filterBy}
                   {
                     syncBootstrapState[
@@ -1259,11 +1344,100 @@ function Home() {
                       )
                     ]?.find(x => x.id === filterConfig.key)?.name
                   }
-                </div>
+                </div> */}
               </div>
 
-              <button onClick={e => setFilterStage(0)}>
-                <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+              <Button
+                ref={firstBtn}
+                // onClick={_ => {
+                //   alert(1)
+                // }}
+                prefix={<ArrowsExpandIcon />}
+                text={currentView ?? 'Issues'}
+                shortcut={'I'}
+              />
+
+              <Popover
+                triggerRef={firstBtn}
+                shortcut={'I'}
+                syncBootstrapState={syncBootstrapState}
+                placeholder={'View issues from...'}
+                onSelectItem={e => {
+                  setFilterConfig({
+                    key: e.item.id,
+                    type: e.item.type.toUpperCase()
+                  })
+                  setIsVisible(false)
+                  setCurrentView(e.item.name)
+                }}
+              />
+
+              <div className="flex-1"></div>
+
+              {/* <button
+                className="border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center mr-2"
+                onClick={_ => alert(1)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <span className="ml-1 text-xs">Filter</span>
+              </button>
+              <button
+                className="mr-2 border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center "
+                onClick={_ => alert(1)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+                <span className="ml-1 text-xs">Group</span>
+              </button>
+              <button
+                className="mr-2 border-2 border-gray-100 px-1.5 py-1 rounded-lg fill-current text-gray-500 flex items-center "
+                onClick={_ => alert(1)}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z" />
+                </svg>
+                <span className="ml-1 text-xs">Sort</span>
+              </button>
+               */}
+
+              <Button
+                prefix={<PieChartIcon />}
+                shortcut={'R'}
+                text={'Report'}
+                onClick={_ => setIsReportOpen(p => !p)}
+              />
+
+              {/* <button
+                className="fill-current text-gray-500"
+                onClick={e => setFilterStage(0)}
+              >
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24">
                   <path
                     stroke="currentColor"
                     stroke-linecap="round"
@@ -1273,228 +1447,224 @@ function Home() {
                   ></path>
                 </svg>
               </button>
-
-              {/*
-            <div className="header-calendar">
-              <Menu as="div" className="relative inline-block text-left ml-2">
-                {({ open }) => (
-                  <>
-                    <div>
-                      <Menu.Button>
-                        <CalendarIcon />
-                      </Menu.Button>
-                    </div>
-
-                    <Transition
-                      show={open}
-                      as={Fragment}
-                      enter="transition ease-out duration-100"
-                      enterFrom="transform opacity-0 scale-95"
-                      enterTo="transform opacity-100 scale-100"
-                      leave="transition ease-in duration-75"
-                      leaveFrom="transform opacity-100 scale-100"
-                      leaveTo="transform opacity-0 scale-95"
-                    >
-                      <Menu.Items
-                        static
-                        className="z-40 origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden"
-                      >
-                        <div className="py-1">
-                          {stage === 'TYPE_SELECTION' ? (
-                            <Menu.Item>
-                              {({ active }) => (
-                                <a
-                                  onClick={() => setStage('KEY_SELECTION')}
-                                  href="#"
-                                  className={classNames(
-                                    active
-                                      ? 'bg-gray-100 text-gray-900'
-                                      : 'text-gray-700',
-                                    'block px-4 py-2 text-sm'
-                                  )}
-                                >
-                                  By Team
-                                </a>
-                              )}
-                            </Menu.Item>
-                          ) : stage === 'KEY_SELECTION' ? (
-                            syncBootstrapState?.Team?.map(({ name, id }) => {
-                              return (
-                                <Menu.Item>
-                                  {({ active }) => (
-                                    <a
-                                      onClick={() =>
-                                        setFilterConfig({
-                                          key: id,
-                                          type: 'TEAM'
-                                        })
-                                      }
-                                      href="#"
-                                      className={classNames(
-                                        active
-                                          ? 'bg-gray-100 text-gray-900'
-                                          : 'text-gray-700',
-                                        'block px-4 py-2 text-sm'
-                                      )}
-                                    >
-                                      {name}
-                                    </a>
-                                  )}
-                                </Menu.Item>
-                              )
-                            })
-                          ) : (
-                            ''
-                          )}
-
-                          {/* 
-                          <Menu.Item>
-                            {({ active }) => (
-                              <a
-                                onClick={() => setViewIssuesFrom('DAY')}
-                                href="#"
-                                className={classNames(
-                                  active
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700',
-                                  'block px-4 py-2 text-sm'
-                                )}
-                              >
-                                Today
-                              </a>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <a
-                                onClick={() => setViewIssuesFrom('THREE_DAYS')}
-                                href="#"
-                                className={classNames(
-                                  active
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700',
-                                  'block px-4 py-2 text-sm'
-                                )}
-                              >
-                                Last 3 days
-                              </a>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <a
-                                onClick={() => setViewIssuesFrom('WEEK')}
-                                href="#"
-                                className={classNames(
-                                  active
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700',
-                                  'block px-4 py-2 text-sm'
-                                )}
-                              >
-                                Last week
-                              </a>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <a
-                                onClick={() => setViewIssuesFrom('MONTH')}
-                                href="#"
-                                className={classNames(
-                                  active
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700',
-                                  'block px-4 py-2 text-sm'
-                                )}
-                              >
-                                Last Month
-                              </a>
-                            )}
-                          </Menu.Item>
-                          <Menu.Item>
-                            {({ active }) => (
-                              <a
-                                onClick={() => setViewIssuesFrom('ALL')}
-                                href="#"
-                                className={classNames(
-                                  active
-                                    ? 'bg-gray-100 text-gray-900'
-                                    : 'text-gray-700',
-                                  'block px-4 py-2 text-sm'
-                                )}
-                              >
-                                All
-                              </a>
-                            )}
-                          </Menu.Item>*/}
-              {/*</div>
-                      </Menu.Items>
-                    </Transition>
-                  </>
-                )}
-              </Menu>
-            </div>*/}
+             */}
             </div>
 
-            <SubHeader
-              setIssues={setIssues}
-              syncBootstrapState={syncBootstrapState}
-            />
+            <div className="relative">
+              <ReportPanel
+                issues={issues}
+                isReportOpen={isReportOpen}
+                setIsReportOpen={setIsReportOpen}
+              />
 
-            <div className="task-list text-gray-700 ">
-              <List
-                itemCount={issues.length}
-                itemData={{ ...itemData, ...hov }}
-                itemSize={40}
-                height={height - 100 ?? 100}
-                width={width ?? 100}
-                ref={ref}
-              >
-                {Row}
-              </List>
-            </div>
-
-            {true ? (
-              <div
-                ref={popperElement}
-                className="py-1 outline-none bg-white"
-                style={{
-                  //...styles.popper,
-                  left: '50%',
-                  top: '90%',
-                  position: 'absolute',
-                  transform: 'translate(-50%, -50%)',
-                  color: '#eee',
-                  borderRadius: '8px',
-                  background: '#111'
-                  //display: showPopper ? 'flex' : 'none'
-                }}
-                //{...attributes.popper}
-              >
-                <input
-                  value={inputValue}
-                  onChange={e => setInputValue(e.target.value)}
-                  className="outline-none bg-white text-sm text-gray-600 w-50 px-4 py-0"
-                  style={{
-                    color: '#eee',
-                    borderRadius: '8px',
-                    background: '#111'
-                    //display: showPopper ? 'flex' : 'none'
+              <div className="task-list text-gray-700 ">
+                <FList
+                  itemCount={issues.length}
+                  itemData={{
+                    issues,
+                    hoveredRowIndex,
+                    setHoveredRowIndex,
+                    toggleItemActive,
+                    toggleItemActive: i => {
+                      setSelectedTask(issues[i])
+                      if (!showTimeTrackerLauncher)
+                        setShowTimeTrackerLauncher(true)
+                      inputRef?.current?.focus()
+                    }
                   }}
-                  placeholder="Track time e.g 1h 10m"
-                  ref={inputRef}
-                  //placeholder="Time taken. e.g 1h 20m"
-                />
-                {/* <div ref={setArrowElement} style={styles.arrow} /> */}
+                  itemSize={40}
+                  height={height - 90 ?? 100}
+                  width={width ?? 100}
+                  ref={ref}
+                >
+                  {Row}
+                </FList>
               </div>
-            ) : (
-              ''
-            )}
+            </div>
+
+            <TrackTimeLauncher
+              inputRef={inputRef}
+              selectedTask={selectedTask}
+              inputValue={inputValue}
+              setInputValue={setInputValue}
+              showTimeTrackerLauncher={showTimeTrackerLauncher}
+              setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
+            />
           </div>
-        </div>
+        </>
       )}
     </Fragment>
+  )
+}
+
+const PieChartIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-3.5 w-3.5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+  >
+    <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+    <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+  </svg>
+)
+
+const TrackTimeLauncher = ({
+  inputRef,
+  selectedTask,
+  inputValue,
+  setInputValue,
+  showTimeTrackerLauncher,
+  setShowTimeTrackerLauncher
+}) => {
+  //log(selectedTask)
+
+  // const handlers = {
+  //   close: () => {
+  //     log(1111)
+  //   }
+  // }
+
+  // return (
+  //   <HotKeys keyMap={{ close: 'esc' }} handlers={handlers}>
+  //     <div>hello</div>
+  //   </HotKeys>
+  // )
+
+  useHotkeys(
+    'esc',
+    () => {
+      if (showTimeTrackerLauncher) setShowTimeTrackerLauncher(false)
+    },
+    { enableOnTags: ['INPUT'] }
+  )
+  return showTimeTrackerLauncher ? (
+    <div
+      className="max-w-xs py-3 outline-none bg-white shadow-2xl border-2 border-gray-50 flex-col"
+      style={{
+        left: '50%',
+        bottom: '20px',
+        position: 'absolute',
+        transform: 'translate(-50%, -50%)',
+        color: '#eee',
+        borderRadius: '8px',
+        minWidth: '320px'
+        //display: showPopper ? 'flex' : 'none'
+      }}
+    >
+      {selectedTask?.title && (
+        <div className="flex mb-2">
+          <div
+            // style={{
+            //   overflow: 'hidden',
+            //   lineHeight: 'normal',
+            //   textAlign: 'left',
+            //   whiteSpace: 'nowrap',
+            //   overflow: 'hidden',
+            //   textOverflow: 'ellipsis',
+            //   color: 'rgb(40, 42, 48)',
+            //   fontWeight: 500,
+            //   fontSize: '13px',
+            //   flexShrink: 1,
+            //   maxWidth: '251px'
+            // }}
+            className="max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap text-xs text-gray-400 px-2 py-1 mx-4 bg-gray-100 rounded"
+          >
+            {selectedTask.title}
+          </div>
+          <div className="flex-1"></div>
+        </div>
+      )}
+      <input
+        // onFocus={_ => setTrackTimeLauncherFocus(true)}
+        // onBlur={_ => setTrackTimeLauncherFocus(false)}
+        autoFocus
+        ref={inputRef}
+        value={inputValue}
+        onChange={e => setInputValue(e.target.value)}
+        // defaultValue={
+        //   selectedTask.duration
+        //     ? juration().humanize(selectedTask.duration)
+        //     : ''
+        // }
+        className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
+        placeholder="Track time e.g 1h 10m"
+        //placeholder="Time taken. e.g 1h 20m"
+      />
+    </div>
+  ) : (
+    ''
+  )
+}
+
+const ArrowsExpandIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    //class="h-5 w-5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+  >
+    <path
+      //stroke="#374151"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M3 8V4m0 0h4M3 4l4 4m8 0V4m0 0h-4m4 0l-4 4m-8 4v4m0 0h4m-4 0l4-4m8 4l-4-4m4 4v-4m0 4h-4"
+    />
+  </svg>
+)
+
+const Button = forwardRef(({ onClick, text, shortcut, prefix }, ref) => (
+  <button
+    ref={ref}
+    className="flex items-center text-gray-500 text-xs flex rounded-lg border-2 border-gray-100 px-1.5 py-1 focus:outline-none"
+    onClick={onClick}
+  >
+    <span className="w-3.5 h-3.5 text-gray-500 stroke-current">{prefix}</span>
+    <span
+      style={{ maxWidth: '75px' }}
+      className="mx-1.5 overflow-hidden whitespace-nowrap overflow-ellipsis"
+    >
+      {text}
+    </span>
+    <span
+      style={{ fontSize: '10px' }}
+      className="bg-gray-100 rounded px-1.5 py-.5 text-gray-500"
+    >
+      {shortcut}
+    </span>
+  </button>
+))
+
+const ReportPanel = ({ isReportOpen, setIsReportOpen, issues }) => {
+  const [total, setTotal] = useState('0')
+  const styles = useSpring({
+    config: { mass: 1, tension: 1400, friction: 70 },
+    opacity: isReportOpen ? 1 : 0
+  })
+
+  useEffect(() => {
+    let total = issues?.reduce((a, i) => {
+      if (i.duration) {
+        a += i.duration
+      }
+      return a
+    }, 0)
+    total && setTotal(juration().humanize(total))
+  }, [issues])
+
+  useHotkeys('r', ({}) => {
+    setIsReportOpen(p => !p)
+  })
+  return (
+    <div>
+      {isReportOpen && (
+        <div className="z-50 absolute top-0 left-20 bottom-0 right-0 bg-gray-100 p-7 text-sm text-gray-500">
+          <span className="mr-7">Total</span>
+          <span>{total}</span>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1513,7 +1683,7 @@ const virtualElement = {
   getBoundingClientRect: generateGetBoundingClientRect()
 }
 
-export const SubHeader = ({ syncBootstrapState, setIssues }) => {
+const SubHeader = ({ syncBootstrapState, setIssues }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [teamName, setTeamName] = useState(null)
 
@@ -1535,21 +1705,6 @@ export const SubHeader = ({ syncBootstrapState, setIssues }) => {
     setIsProjectOpen(false)
     setTeamName(null)
   }
-
-  const [referenceElement, setReferenceElement] = useState(null)
-  const [popperElement, setPopperElement] = useState(null)
-  const { styles, attributes } = usePopper(referenceElement, popperElement, {
-    placement: 'bottom-start',
-    modifiers: [
-      {
-        name: 'offset',
-        options: {
-          // TODO: positions towards the bottom should have -140
-          offset: [0, 5]
-        }
-      }
-    ]
-  })
 
   const [projectReferenceElement, setProjectReferenceElement] = useState(null)
   const [projectPopperElement, setProjectPopperElement] = useState(null)
@@ -1715,8 +1870,8 @@ export const SubHeader = ({ syncBootstrapState, setIssues }) => {
 
 const Row = memo(({ data, index, style }) => {
   // Data passed to List as "itemData" is available as props.data
-  const { items, toggleItemActive, setHoveredRowIndex, hoveredRowIndex } = data
-  const item = items[index]
+  const { issues, toggleItemActive, setHoveredRowIndex, hoveredRowIndex } = data
+  const item = issues[index]
   const { title, duration } = item
   const isHovered = hoveredRowIndex === index
 
@@ -1733,8 +1888,8 @@ const Row = memo(({ data, index, style }) => {
     >
       <div
         className={`w-2 h-2 ${
-          duration == null ? 'rounded-full bg-indigo-400' : ''
-        } mr-2`}
+          duration == null ? 'rounded-full bg-yellow-400' : ''
+        } mr-3`}
       ></div>
       <div
         style={{
@@ -1762,5 +1917,325 @@ const Row = memo(({ data, index, style }) => {
     </div>
   )
 }, areEqual)
+
+const Popover = ({
+  placeholder,
+  shortcut,
+  onSelectItem,
+  syncBootstrapState,
+  triggerRef
+}) => {
+  // TODO: why does it render so many times?
+  //log('Popover: render')
+
+  // State
+  const [query, setQuery] = useState('')
+  const [viewProps, setViewProps] = useState()
+  const [selectedIndex, setSelectedIndex] = useState(null)
+  const [pending, setPending] = useState(true)
+  const [position, setPosition] = useState(true)
+  const [isVisible, setIsVisible] = useState(false)
+  const [hoverIndex, setHoverIndex] = useState(0)
+  const [popper, setPopper] = useState()
+  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState([])
+  const ref = useRef(null)
+  const inputRef = useRef()
+  const lsRef = useRef()
+
+  // Effects
+  useEffect(() => {
+    if (!query) return setViewProps(items)
+  }, [query])
+  useEffect(() => {
+    setHoverIndex(0)
+  }, [query])
+  useEffect(() => {
+    setViewProps(items)
+  }, [items])
+  useEffect(() => {
+    const click = () => {
+      setIsVisible(true)
+      setPending(false)
+      ref.current.focus()
+      setItems([
+        { type: 'header', name: 'Project' },
+        ...syncBootstrapState.Project.map(x => ({
+          ...x,
+          type: 'Project'
+        })),
+        { type: 'header', name: 'Team' },
+        ...syncBootstrapState.Team.map(x => ({
+          ...x,
+          type: 'Team'
+        }))
+      ])
+    }
+    triggerRef.current.addEventListener('click', click)
+    return () => triggerRef.current.removeEventListener('click', click)
+  }, [triggerRef])
+  useEffect(() => {
+    setPosition(triggerRef.current.getBoundingClientRect())
+  }, [triggerRef])
+  useEffect(() => {
+    ref?.current?.blur()
+  }, [ref])
+  useEffect(() => {
+    setLoading(false)
+  }, [])
+
+  // Shortcuts
+  useHotkeys('i', () => {
+    setIsVisible(true)
+    setPending(true)
+    ref.current.focus()
+    setItems([
+      { type: 'header', name: 'Project' },
+      ...syncBootstrapState.Project.map(x => ({
+        ...x,
+        type: 'Project'
+      })),
+      { type: 'header', name: 'Team' },
+      ...syncBootstrapState.Team.map(x => ({
+        ...x,
+        type: 'Team'
+      }))
+    ])
+  })
+  useHotkeys(
+    'esc',
+    () => {
+      if (pending) return
+      ref.current.blur()
+      setQuery('')
+      setIsVisible(false)
+      setPending(true)
+    },
+    { enableOnTags: ['INPUT'] }
+  )
+  useHotkeys(
+    'enter',
+    () => {
+      if (pending) return
+      ref.current.blur()
+      setQuery('')
+      setIsVisible(false)
+      setPending(true)
+      onSelectItem({
+        hoverIndex,
+        item: viewProps[hoverIndex]
+      })
+    },
+    { enableOnTags: ['INPUT'] }
+  )
+
+  // Up/Down
+  useEventListener('keydown', e => {
+    if (e.code === 'ArrowDown' && isVisible && viewProps.length) {
+      if (hoverIndex >= viewProps.length - 1) return
+      lsRef.current.scrollToItem(hoverIndex + 1)
+      setHoverIndex(p => p + 1)
+      return
+    }
+    // TODO: up moves cursor position in input left
+    if (e.code === 'ArrowUp' && isVisible && viewProps.length) {
+      if (hoverIndex === 0) return
+      lsRef.current.scrollToItem(hoverIndex - 1)
+      setHoverIndex(p => p - 1)
+      return
+    }
+  })
+
+  // Animation
+  const styles = useSpring({
+    config: { mass: 1, tension: 1400, friction: 70 },
+    opacity: isVisible ? 1 : 0
+  })
+
+  // Positioning
+  useEffect(() => {
+    if (!position) return
+    if (!popper) return
+    //log('Popper: mount')
+    const virtualElement = {
+      getBoundingClientRect: () => position
+    }
+    let instance = createPopper(virtualElement, popper, {
+      placement: 'bottom-start',
+      modifiers: [
+        {
+          name: 'offset',
+          options: {
+            // TODO: positions towards the bottom should have -140
+            offset: [0, 5]
+          }
+        }
+      ]
+    })
+    return () => {
+      //log('Popper: unmount')
+      instance.destroy()
+    }
+  }, [position, popper])
+
+  if (loading) return ''
+
+  return (
+    <>
+      <animated.div style={{ ...styles, zIndex: '50' }}>
+        {isVisible && (
+          <div
+            className="fixed left-0 top-0 bottom-0 right-0"
+            onClick={({ target }) => {
+              if (target.contains(popper)) setIsVisible(false)
+            }}
+          >
+            <div
+              ref={x => setPopper(x)}
+              className="z-50 bg-white border-2 border-gray-100 rounded-lg py-1 text-gray-700"
+            >
+              <div className="flex items-center">
+                <input
+                  type="text"
+                  onFocus={_ => {
+                    log('FOCUS')
+                  }}
+                  onBlur={_ => {
+                    log('BLUR')
+                  }}
+                  value={query}
+                  className="outline-none border-b-2 border-gray-100 w-full mb-0 py-2 px-4 text-sm"
+                  placeholder={placeholder}
+                  ref={ref}
+                  onChange={e => {
+                    log('CHANGE', pending)
+                    if (pending) {
+                      setPending(false)
+                    } else {
+                      setQuery(e.target.value)
+
+                      setViewProps(_ =>
+                        items.filter(x =>
+                          x?.name
+                            ?.toLowerCase()
+                            .includes(e.target.value?.toLowerCase())
+                        )
+                      )
+                    }
+                  }}
+                />
+
+                <div
+                  style={{
+                    fontSize: '11px'
+                  }}
+                  className="absolute right-4 bg-gray-100 text-gray-500 rounded px-2 py-0.5"
+                >
+                  {shortcut}
+                </div>
+              </div>
+              <div>
+                <VList
+                  ref={lsRef}
+                  className="py-0"
+                  width={250}
+                  height={230}
+                  itemCount={viewProps?.length}
+                  itemSize={index => (viewProps[index].header ? 30 : 40)}
+                  itemData={viewProps}
+                >
+                  {e => {
+                    let { data, index, style, key } = e
+                    //log('POPOVER: List render')
+                    let item = viewProps[index]
+                    let isHovered = hoverIndex === index
+                    let isSelected = selectedIndex === item.id
+                    if (item.type === 'header')
+                      return (
+                        <div
+                          style={{
+                            ...style
+                          }}
+                          className={`text-xs text-gray-400 flex items-center px-4`}
+                        >
+                          {item.name}
+                        </div>
+                      )
+
+                    return (
+                      <div
+                        onClick={() => {
+                          onSelectItem({
+                            hoverIndex,
+                            item: viewProps[hoverIndex]
+                          })
+                          setSelectedIndex(item.id)
+                        }}
+                        onMouseEnter={() => setHoverIndex(index)}
+                        className={`text-sm ${
+                          isHovered ? 'text-gray-800' : 'text-gray-600'
+                        } flex items-center px-4`}
+                        key={index}
+                        style={{
+                          ...style,
+                          background: `${isHovered ? '#f8f9fb' : ''} `
+                        }}
+                      >
+                        <div
+                          className={`fill-current ${
+                            isHovered ? 'text-gray-700' : 'text-gray-500'
+                          } mr-4`}
+                        >
+                          <svg width="16" height="16" viewBox="-1 -1 15 15">
+                            <path d="M10.5714 7C10.5714 8.97245 8.97245 10.5714 7 10.5714L6.99975 3.42857C8.9722 3.42857 10.5714 5.02755 10.5714 7Z"></path>
+                            <path
+                              fill-rule="evenodd"
+                              clip-rule="evenodd"
+                              d="M7 12.5C10.0376 12.5 12.5 10.0376 12.5 7C12.5 3.96243 10.0376 1.5 7 1.5C3.96243 1.5 1.5 3.96243 1.5 7C1.5 10.0376 3.96243 12.5 7 12.5ZM7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14Z"
+                            ></path>
+                          </svg>
+                        </div>
+                        <div>{item.name}</div>
+                        <div className="flex-1"></div>
+                        {isSelected && (
+                          <div className="fill-current text-gray-400">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-3.5 w-3.5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                          </div>
+                        )}
+
+                        {item.shortcut?.split('').map((x, i) => (
+                          <div
+                            className={`${
+                              i === item.shortcut.split('').length - 1
+                                ? ''
+                                : 'mr-1'
+                            } text-xs text-gray-500 bg-gray-100 rounded px-1 py-0.5`}
+                          >
+                            {x}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }}
+                </VList>
+              </div>
+            </div>
+          </div>
+        )}
+      </animated.div>
+    </>
+  )
+}
 
 export default Home

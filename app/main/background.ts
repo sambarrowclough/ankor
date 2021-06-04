@@ -32,6 +32,8 @@ ipcMain.on('DONE', (event, arg) => {
     height: 600
   })
 
+  //app.dock.hide()
+
   if (isProd) {
     await mainWindow.loadURL('app://./home.html')
   } else {
