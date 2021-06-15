@@ -1,6 +1,8 @@
 import React, {
   useState,
   useEffect,
+  createContext,
+  useContext,
   Fragment,
   memo,
   useRef,
@@ -33,7 +35,13 @@ import { FocusScope } from '@react-aria/focus'
 import { useButton } from '@react-aria/button'
 import { useSpring, animated } from 'react-spring'
 import { createPopper } from '@popperjs/core'
-import { GlobalHotKeys, HotKeys } from 'react-hotkeys'
+import * as Checkbox from '@radix-ui/react-checkbox'
+import { CheckIcon } from '@radix-ui/react-icons'
+import { styled } from '@stitches/react'
+import { VariableSizeList as List } from 'react-window'
+import { FocusOn } from 'react-focus-on'
+import { GlobalHotKeys, HotKeys, configure } from 'react-hotkeys'
+
 import loadConfig from 'next/dist/next-server/server/config'
 const str = d => JSON.stringify(d)
 const log = console.log
@@ -42,62 +50,399 @@ const supabaseKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-function ModalDialog(props) {
-  let { title, children } = props
+configure({ ignoreTags: ['select', 'textarea'] })
 
-  // Handle interacting outside the dialog and pressing
-  // the Escape key to close the modal.
-  let ref = React.useRef()
-  let { overlayProps, underlayProps } = useOverlay(props, ref)
+const MenuContext = createContext('menu')
 
-  // Prevent scrolling while the modal is open, and hide content
-  // outside the modal from screen readers.
-  usePreventScroll()
-  let { modalProps } = useModal()
+const StyledCheckbox = styled(Checkbox.Root, {
+  appearance: 'none',
+  backgroundColor: 'transparent',
+  border: 'none',
+  padding: 0,
+  boxShadow: 'inset 0 0 0 2px #4EA7FC',
+  width: 17,
+  height: 17,
+  borderRadius: 6,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: 'white',
 
-  // Get props for the dialog and its title
-  let { dialogProps, titleProps } = useDialog(props, ref)
+  '&:focus': {
+    outline: 'none'
+    //boxShadow: "inset 0 0 0 1px dodgerblue, 0 0 0 1px dodgerblue"
+  },
 
+  "&[data-state='checked']": {
+    backgroundColor: '#4EA7FC'
+  }
+})
+
+// const data = [
+//   { type: 'header', text: 'Status', height: 20 },
+//   { type: 'row', text: 'Done', count: '200', checked: false },
+//   { type: 'row', text: 'In Progress', count: '200', checked: false },
+//   { type: 'row', text: 'Backlog', count: '200', checked: false },
+//   { type: 'row', text: 'Cancelled', count: '200', checked: false },
+//   { type: 'header', text: 'Project', height: 20 },
+//   { type: 'row', text: 'Ankor', count: '200', checked: false },
+//   { type: 'row', text: 'Worlds', count: '200', checked: false },
+//   { type: 'row', text: 'Inspyr', count: '200', checked: false },
+//   { type: 'row', text: 'Vasai', count: '200', checked: false },
+//   { type: 'header', text: 'Team', height: 20 },
+//   { type: 'row', text: 'Engineering', count: '200', checked: false },
+//   { type: 'row', text: 'Design', count: '200', checked: false },
+//   { type: 'row', text: 'Production', count: '200', checked: false },
+//   { type: 'row', text: 'Marketing', count: '200', checked: false }
+// ]
+
+function Filter({ syncBootstrapState, setIssues }) {
+  const [open, setOpen] = useState(false)
+  const [hoverRowIndex, setHoverRowIndex] = useState(1)
+  const inputRef = useRef()
+  const listRef = useRef()
+  const menuContentRef = useRef()
+  const [items, setItems] = useState([
+    { type: 'header', name: 'Quick links' },
+    { type: 'Unlogged', name: 'Unlogged issues' },
+    { type: 'header', name: 'Project' },
+    ...syncBootstrapState.Project.map(y => ({ ...y, type: 'Project' })),
+    { type: 'header', name: 'Team' },
+    ...syncBootstrapState.Team.map(y => ({ ...y, type: 'Team' }))
+  ])
+
+  //setIssues(p => p.filter(x => x.duration == null))
   return (
-    <div
-      style={{
-        position: 'fixed',
-        zIndex: 100,
-        top: 0,
-        left: 0,
-        bottom: 0,
-        right: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-      {...underlayProps}
-    >
-      <FocusScope contain restoreFocus autoFocus>
-        <div
-          {...overlayProps}
-          {...dialogProps}
-          {...modalProps}
-          ref={ref}
-          style={{
-            background: 'white',
-            color: 'black',
-            padding: 30
+    <>
+      <Button shortcut={'F'} text={'Filter'} onClick={_ => setOpen(p => !p)} />
+
+      <MenuContext.Provider
+        value={{
+          items,
+          setItems,
+          open,
+          setOpen,
+          menuContentRef,
+          hoverRowIndex,
+          setHoverRowIndex,
+          listRef
+        }}
+      >
+        <GlobalHotKeys
+          keyMap={{
+            open: 'f'
+          }}
+          handlers={{
+            open: () => {
+              if (document?.activeElement === inputRef?.current) return
+              setOpen(p => !p)
+            }
           }}
         >
-          <h3 {...titleProps} style={{ marginTop: 0 }}>
-            {title}
-          </h3>
-          {children}
-        </div>
-      </FocusScope>
-    </div>
+          {open && (
+            <div
+              tabindex="0"
+              className="z-50 flex px-2 py-2 flex-col bg-gray-50 rounded-xl border-2 border-gray-100"
+              style={{
+                //...style,
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                width: '400px',
+                transform: 'translate(-50%,-50%)'
+              }}
+            >
+              <MenuInput placeholder={'Filter by'} />
+              <ul ref={menuContentRef}>
+                <List
+                  ref={listRef}
+                  itemData={{
+                    items,
+                    hoverRowIndex
+                  }}
+                  height={250}
+                  itemCount={items.length}
+                  itemSize={index => (items[index].type === 'header' ? 30 : 40)}
+                  // TODO: figure out width of modal
+                  width={380}
+                >
+                  {({ index, style, data }) => {
+                    const { items, hoverRowIndex } = data
+                    const type = items[index].type
+                    const text = items[index].name
+                    const isHovered = index === hoverRowIndex
+                    const checked = items[index].checked
+                    if (type === 'header') {
+                      return <MenuItemTitle style={style}>{text}</MenuItemTitle>
+                    }
+
+                    //log("render");
+
+                    return (
+                      <MenuItem
+                        setIssues={setIssues}
+                        index={index}
+                        checked={checked}
+                        syncBootstrapState={syncBootstrapState}
+                        onMouseEnter={_ => {
+                          log('MOUSE ENTER CHANGE')
+                          setHoverRowIndex(index)
+                        }}
+                        onClick={_ => console.log(index)}
+                        text={text}
+                        count={index}
+                        style={{
+                          ...style,
+                          backgroundColor: `${isHovered ? '#eee' : ''}`
+                        }}
+                      >
+                        Row {index}
+                      </MenuItem>
+                    )
+                  }}
+                </List>
+              </ul>
+            </div>
+          )}
+        </GlobalHotKeys>
+      </MenuContext.Provider>
+    </>
   )
 }
 
-function Modal({}) {
-  return
+const MenuInput = forwardRef(({ placeholder }) => {
+  const {
+    items,
+    setItems,
+    setOpen,
+    menuContentRef,
+    setHoverRowIndex,
+    hoverRowIndex,
+    listRef,
+    inputRef
+  } = useContext(MenuContext)
+
+  const [lastCheckedRowIndex, setLastCheckedRowIndex] = useState(hoverRowIndex)
+
+  const [loading, setLoading] = useState(true)
+  const [query, setQuery] = useState('')
+  return (
+    <FocusOn
+      shards={[menuContentRef]}
+      onEscapeKey={() => {
+        setOpen(false)
+        setItems(items)
+        log('ESCAPE CHANGE')
+        setHoverRowIndex && setHoverRowIndex(1)
+      }}
+      onClickOutside={_ => {
+        log('click outside')
+        setOpen(false)
+      }}
+    >
+      <HotKeys
+        keyMap={{
+          multiSelectDown: 'shift+down',
+          multiSelectUp: 'shift+up',
+          select: 'enter',
+          down: 'down',
+          up: 'up'
+        }}
+        handlers={{
+          // TODO: holding down Down key should keep moving the hoverRowIndex down
+          up: () => {
+            setHoverRowIndex(p => {
+              let index = p - 1
+
+              // HACK: Stay in bounds
+              log(index)
+              if (index <= 1) {
+                listRef.current.scrollToItem(1)
+                return 1
+              }
+
+              // Skip headers
+              if (items[index]?.type === 'header') {
+                index = index - 1
+              }
+              listRef.current.scrollToItem(index)
+              return index
+            })
+          },
+          down: () => {
+            setHoverRowIndex(p => {
+              let index = p + 1
+
+              // HACK: Stay in bounds
+              if (index >= items.length) {
+                listRef.current.scrollToItem(items.length - 1)
+                return items.length - 1
+              }
+
+              // Skip headers
+              if (items[index]?.type === 'header') {
+                index = index + 1
+              }
+              listRef.current.scrollToItem(index)
+              return index
+            })
+          },
+          select: _ => log('SELECT', hoverRowIndex),
+          multiSelectUp: () => {
+            return
+            log('up')
+            // Get the latest state value from an event handlers
+            // https://stackoverflow.com/a/60316873
+            setLastCheckedRowIndex(p => {
+              let index = p
+              if (items[index]?.type === 'header') {
+                index = index - 1
+              }
+              setItems(i => {
+                const temp = i.concat()
+                if (temp[index]) {
+                  temp[index].checked = false
+                }
+                return temp
+              })
+              listRef.current.scrollToItem(index - 1)
+              return index - 1
+            })
+          },
+          multiSelectDown: () => {
+            return
+            // Get the latest state value from an event handlers
+            // https://stackoverflow.com/a/60316873
+            setLastCheckedRowIndex(p => {
+              let index = p
+              if (items[index]?.type === 'header') {
+                index = index + 1
+              }
+              setItems(i => {
+                const temp = i.concat()
+                if (temp[index]) {
+                  temp[index].checked = true
+                }
+                return temp
+              })
+              listRef.current.scrollToItem(index)
+              return index + 1
+            })
+          }
+        }}
+      >
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => {
+            const { value } = e.target
+            if (loading) {
+              return setLoading(false)
+            }
+            log('INPUT CHANGE')
+            setHoverRowIndex && setHoverRowIndex(1)
+            setQuery(value)
+            setItems(
+              items.filter(x => {
+                if (x.type === 'header') return x
+                return x.name.toLowerCase().includes(value.toLowerCase())
+              })
+            )
+          }}
+          class="w-full flex bg-gray-50 p-1 outline-none focus:outline-none px-3 py-2 border-b-2 border-gray-100"
+          placeholder={placeholder}
+        />
+      </HotKeys>
+    </FocusOn>
+  )
+})
+
+const MenuItemTitle = ({ style, children }) => (
+  <span style={{ ...style }} class="text-xs px-2 mt-3 text-gray-400">
+    {children}
+  </span>
+)
+
+//TODO: don't scroll-x
+const MenuItem = ({
+  onClick,
+  style,
+  text,
+  count,
+  checked = false,
+  index,
+  setIssues,
+  syncBootstrapState,
+  ...rest
+}) => {
+  //const [checked, setChecked] = useState(false);
+  const { setItems, hoverRowIndex } = useContext(MenuContext)
+
+  return (
+    <li
+      data-is-hovered={index === hoverRowIndex}
+      data-index={index}
+      {...rest}
+      onClick={onClick}
+      style={{ ...style }}
+      className="text-gray-600 px-2  flex items-center rounded-lg  transition-all"
+    >
+      <span class="mr-2">
+        <StyledCheckbox
+          onCheckedChange={c =>
+            setItems(p => {
+              //log(c.target.checked)
+              const temp = p.concat()
+              //log(temp[index])
+              temp[index].checked = c.target.checked
+              const checked = temp.filter(x => x.checked)
+
+              let completedIssues = getCompletedIssues(syncBootstrapState)
+              if (completedIssues) {
+                completedIssues = _.uniqBy(completedIssues, 'id')
+              }
+
+              const filtered = checked.reduce((acc, item) => {
+                acc.push(
+                  ...filter(
+                    item.type.toUpperCase(),
+                    item.id,
+                    completedIssues
+                    //syncBootstrapState.Issue
+                  )
+                )
+                return acc
+              }, [])
+
+              setIssues(filtered)
+              return temp
+            })
+          }
+          defaultChecked={false}
+          checked={checked}
+        >
+          <Checkbox.Indicator as={CheckIcon} />
+        </StyledCheckbox>
+      </span>
+      <span class="mr-2">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 10 10"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M9.95771 5.65304L8.54114 5.46826C8.56107 5.31564 8.57143 5.15939 8.57143 5C8.57143 4.84061 8.56107 4.68436 8.54114 4.53174L9.95771 4.34695C9.98564 4.56069 10 4.77866 10 5C10 5.22134 9.98564 5.43931 9.95771 5.65304ZM9.62057 3.08606C9.452 2.67957 9.23136 2.30014 8.967 1.95608L7.83429 2.82654C8.02343 3.07275 8.18093 3.34371 8.301 3.63328L9.62057 3.08606ZM8.04393 1.033L7.17343 2.16574C6.92725 1.97654 6.65629 1.81909 6.36672 1.69901L6.91394 0.379402C7.32043 0.547966 7.69986 0.768607 8.04393 1.033ZM5.65304 0.0422614L5.46826 1.45884C5.31564 1.43892 5.15939 1.42857 5 1.42857C4.84061 1.42857 4.68436 1.43892 4.53174 1.45884L4.34696 0.0422614C4.56069 0.0143816 4.77866 0 5 0C5.22134 0 5.43931 0.0143816 5.65304 0.0422614ZM3.08606 0.379403L3.63328 1.69901C3.34371 1.81909 3.07275 1.97654 2.82654 2.16574L1.95608 1.033C2.30014 0.768607 2.67957 0.547966 3.08606 0.379403ZM1.033 1.95608L2.16574 2.82654C1.97654 3.07275 1.81909 3.34371 1.69901 3.63328L0.379403 3.08606C0.547966 2.67957 0.768607 2.30014 1.033 1.95608ZM0.0422614 4.34696C0.0143816 4.56069 0 4.77866 0 5C0 5.22134 0.0143816 5.43931 0.0422614 5.65304L1.45884 5.46826C1.43892 5.31564 1.42857 5.15939 1.42857 5C1.42857 4.84061 1.43892 4.68436 1.45884 4.53174L0.0422614 4.34696ZM0.379403 6.91394L1.69901 6.36672C1.81909 6.65629 1.97654 6.92725 2.16574 7.17343L1.033 8.04393C0.768607 7.69986 0.547966 7.32043 0.379403 6.91394ZM1.95608 8.967L2.82654 7.83429C3.07275 8.02343 3.34371 8.18093 3.63328 8.301L3.08606 9.62057C2.67957 9.452 2.30014 9.23136 1.95608 8.967ZM4.34696 9.95771L4.53174 8.54114C4.68436 8.56107 4.84061 8.57143 5 8.57143C5.15939 8.57143 5.31564 8.56107 5.46826 8.54114L5.65305 9.95771C5.43931 9.98564 5.22134 10 5 10C4.77866 10 4.56069 9.98564 4.34696 9.95771ZM6.91394 9.62057L6.36672 8.301C6.65629 8.18093 6.92725 8.02343 7.17343 7.83429L8.04393 8.967C7.69986 9.23136 7.32043 9.452 6.91394 9.62057ZM8.967 8.04393L7.83429 7.17343C8.02343 6.92725 8.18093 6.65629 8.301 6.36672L9.62057 6.91394C9.452 7.32043 9.23143 7.69986 8.967 8.04393Z"
+            fill="#BEC2C8"
+          />
+        </svg>
+      </span>
+      <span class="text-gray-600">
+        {text} {count && <span class="text-gray-300">- {count}</span>}
+      </span>
+    </li>
+  )
 }
 
 /*
@@ -477,33 +822,6 @@ const logIssue = async ({ id, duration }) => {
   }
 }
 
-const handleLogTime = async ({ id, duration }) => {
-  let issue = getCompletedIssues().find(x => x.id === id)
-  if (!issue) return console.log(`Issue ${id} not found`)
-  issue['duration'] = duration
-  issue['loggedAt'] = new Date().toISOString()
-  setIssues(prev => {
-    const index = prev.findIndex(x => x.id === id)
-    let temp = [...prev]
-    temp.splice(index, 1)
-    return [...temp, issue].sort(byCompleted).reverse()
-  })
-
-  try {
-    const opts = {
-      body: JSON.stringify({ duration, id }),
-      method: 'POST',
-      headers: { 'content-type': 'application/json' }
-    }
-    await fetch(
-      'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
-      opts
-    )
-  } catch (e) {
-    console.log('Something went wrong', e)
-  }
-}
-
 // This helper function memoizes incoming props,
 // To avoid causing unnecessary re-renders pure Row components.
 // This is only needed since we are passing multiple props with a wrapper object.
@@ -522,6 +840,115 @@ function uuid() {
       (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
     ).toString(16)
   )
+}
+
+let filter = (by, key, d) => {
+  let results = []
+  log(by, key)
+  if (!d) return results
+  switch (by) {
+    case 'CONTENT':
+      results = d.filter(x => x.title.includes(key))
+      break
+
+    case 'STATUS':
+      results = d.filter(x => x.stateId === key)
+      break
+
+    case 'PRIORITY':
+      results = d.filter(x => x.priority == key)
+      break
+
+    case 'ASSIGNEE':
+      results = d.filter(x => x.assigneeId === key)
+      break
+
+    case 'SUBSCRIBER':
+      results = d.filter(x => x.subscriberIds.includes(key))
+      break
+
+    case 'CREATOR':
+      results = d.filter(x => x.creatorId === key)
+      break
+
+    case 'ESTIMATE':
+      results = d.filter(x => x.estimate === key)
+      break
+
+    case 'LABEL':
+      results = d.filter(x => x.labelIds.includes(key))
+      break
+
+    case 'CYCLE':
+      results = d.filter(x => x.cycleId == key)
+      break
+
+    case 'PROJECT':
+      results = d.filter(x => x.projectId == key)
+      break
+
+    case 'MILESTONE':
+      // TODO
+      break
+
+    case 'RELATIONSHIP':
+      // TODO
+      break
+
+    case 'TEAM':
+      results = d.filter(x => x.teamId === key)
+      break
+
+    case 'DUE_DATE':
+      // TODO
+      break
+
+    case 'AUTO_CLOSED':
+      // TODO
+      break
+    case 'UNLOGGED':
+      results = d.filter(p => p.duration == null)
+      break
+    case 'ALL':
+      return d.sort(byCompleted).reverse()
+    default:
+      return d.sort(byCompleted).reverse()
+  }
+
+  // if (filterByUnlogged) {
+  //   return results
+  //     .filter(x => x.duration == null)
+  //     .sort(byCompleted)
+  //     .reverse()
+  // }
+  return results.sort(byCompleted).reverse()
+}
+
+const byCompleted = (a, b) => {
+  return a.completedAt < b.completedAt
+    ? -1
+    : a.completedAt > b.completedAt
+    ? 1
+    : 0
+}
+
+const getCompletedIssues = syncBootstrapState => {
+  const completed =
+    syncBootstrapState &&
+    syncBootstrapState.WorkflowState &&
+    syncBootstrapState.WorkflowState.map(x =>
+      x.type === 'completed' ? x : null
+    ).filter(Boolean)
+
+  const completedIds = completed && completed.map(x => x.id)
+  let completedIssues =
+    syncBootstrapState &&
+    syncBootstrapState.Issue &&
+    syncBootstrapState.Issue.map(x => {
+      if (completedIds.find(y => y === x.stateId) != null) return x
+    }).filter(Boolean)
+
+  return completedIssues
 }
 
 function Home() {
@@ -543,8 +970,6 @@ function Home() {
   const [isReportOpen, setIsReportOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState(null)
   const [filterBy, setFilterBy] = useState(null)
-  const [height, setHeight] = useState(null)
-  const [width, setWidth] = useState(null)
   const [isVisible, setIsVisible] = useState(false)
   const [items, setItems] = useState([])
   const [currentView, setCurrentView] = useState(null)
@@ -553,7 +978,7 @@ function Home() {
 
   let openButtonRef = React.useRef()
   let closeButtonRef = React.useRef()
-  const ref = React.useRef()
+
   const inputRef = useRef()
   const firstStageInput = useRef()
   const firstStageContainerRef = useRef()
@@ -570,107 +995,8 @@ function Home() {
     }
   )
 
-  const byCompleted = (a, b) => {
-    return a.completedAt < b.completedAt
-      ? -1
-      : a.completedAt > b.completedAt
-      ? 1
-      : 0
-  }
-
-  const getCompletedIssues = () => {
-    const completed =
-      syncBootstrapState &&
-      syncBootstrapState.WorkflowState &&
-      syncBootstrapState.WorkflowState.map(x =>
-        x.type === 'completed' ? x : null
-      ).filter(Boolean)
-
-    const completedIds = completed && completed.map(x => x.id)
-    let completedIssues =
-      syncBootstrapState &&
-      syncBootstrapState.Issue &&
-      syncBootstrapState.Issue.map(x => {
-        if (completedIds.find(y => y === x.stateId) != null) return x
-      }).filter(Boolean)
-
-    return completedIssues
-  }
-
-  let filter = (by, key, d) => {
-    let results = []
-    log(by, key)
-    if (!d) return results
-    switch (by) {
-      case 'CONTENT':
-        results = d.filter(x => x.title.includes(key))
-        break
-
-      case 'STATUS':
-        results = d.filter(x => x.stateId === key)
-        break
-
-      case 'PRIORITY':
-        results = d.filter(x => x.priority == key)
-        break
-
-      case 'ASSIGNEE':
-        results = d.filter(x => x.assigneeId === key)
-        break
-
-      case 'SUBSCRIBER':
-        results = d.filter(x => x.subscriberIds.includes(key))
-        break
-
-      case 'CREATOR':
-        results = d.filter(x => x.creatorId === key)
-        break
-
-      case 'ESTIMATE':
-        results = d.filter(x => x.estimate === key)
-        break
-
-      case 'LABEL':
-        results = d.filter(x => x.labelIds.includes(key))
-        break
-
-      case 'CYCLE':
-        results = d.filter(x => x.cycleId == key)
-        break
-
-      case 'PROJECT':
-        results = d.filter(x => x.projectId == key)
-        break
-
-      case 'MILESTONE':
-        // TODO
-        break
-
-      case 'RELATIONSHIP':
-        // TODO
-        break
-
-      case 'TEAM':
-        results = d.filter(x => x.teamId === key)
-        break
-
-      case 'DUE_DATE':
-        // TODO
-        break
-
-      case 'AUTO_CLOSED':
-        // TODO
-        break
-      case 'ALL':
-        return d.sort(byCompleted).reverse()
-      default:
-        return d.sort(byCompleted).reverse()
-    }
-    return results.sort(byCompleted).reverse()
-  }
-
   const handleIssueStateChange = () => {
-    let completedIssues = getCompletedIssues()
+    let completedIssues = getCompletedIssues(syncBootstrapState)
     if (completedIssues) {
       completedIssues = _.uniqBy(completedIssues, 'id')
     }
@@ -906,17 +1232,17 @@ function Home() {
       //firstStageInput?.current?.focus()
       // TODO: hotkey for timetracker launcher should be in the component
       case 'Enter':
-        if (!inputValue) return
-        setShowPopper(false)
-        setIssues(prev => {
-          const temp = [...prev]
-          temp[hoveredRowIndex].duration = juration().parse(inputValue)
-          return temp
-        })
-        setInputValue('')
-        console.log(issues[hoveredRowIndex])
-        logIssue(issues[hoveredRowIndex]).then(console.log)
-        setShowTimeTrackerLauncher(false)
+        // if (!inputValue) return
+        // log('sdffdssffssf')
+        // setShowPopper(false)
+        // setIssues(prev => {
+        //   const temp = [...prev]
+        //   temp[hoveredRowIndex].duration = juration().parse(inputValue)
+        //   return temp
+        // })
+        // setInputValue('')
+        // logIssue(issues[hoveredRowIndex]).then(console.log)
+        // //setShowTimeTrackerLauncher(false)
         break
       case 'Escape':
         setShowPopper(false)
@@ -937,17 +1263,6 @@ function Home() {
         break
     }
   })
-
-  useEffect(() => {
-    if (window) {
-      setHeight(window.innerHeight)
-      setWidth(window.innerWidth)
-    }
-  }, [])
-
-  const toggleItemActive = index => {
-    console.log(index)
-  }
 
   //const itemData = createItemData(issues, toggleItemActive)
   const [hoveredRowIndex, setHoveredRowIndex] = React.useState(null)
@@ -1211,6 +1526,11 @@ function Home() {
 
               <div className="flex-1"></div>
 
+              <Filter
+                setIssues={setIssues}
+                syncBootstrapState={syncBootstrapState}
+              />
+
               <Button
                 prefix={<PieChartIcon />}
                 shortcut={'R'}
@@ -1226,34 +1546,24 @@ function Home() {
                 setIsReportOpen={setIsReportOpen}
               />
 
-              <div className="task-list text-gray-700 ">
-                <FList
-                  itemCount={issues.length}
-                  itemData={{
-                    issues,
-                    hoveredRowIndex,
-                    setHoveredRowIndex,
-                    toggleItemActive,
-                    toggleItemActive: i => {
-                      setSelectedTask(issues[i])
-                      if (!showTimeTrackerLauncher)
-                        setShowTimeTrackerLauncher(true)
-                      inputRef?.current?.focus()
-                    }
-                  }}
-                  itemSize={40}
-                  height={height - 90 ?? 100}
-                  width={width ?? 100}
-                  ref={ref}
-                >
-                  {Row}
-                </FList>
-              </div>
+              <MainIssueWindow
+                issues={issues}
+                hoveredRowIndex={hoveredRowIndex}
+                setHoveredRowIndex={setHoveredRowIndex}
+                showTimeTrackerLauncher={showTimeTrackerLauncher}
+                setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
+                inputRef={inputRef}
+                setSelectedTask={setSelectedTask}
+              />
             </div>
 
             <TrackTimeLauncher
+              issues={issues}
+              setIssues={setIssues}
+              filterByUnlogged={filterByUnlogged}
               inputRef={inputRef}
               selectedTask={selectedTask}
+              setSelectedTask={setSelectedTask}
               inputValue={inputValue}
               setInputValue={setInputValue}
               showTimeTrackerLauncher={showTimeTrackerLauncher}
@@ -1265,6 +1575,158 @@ function Home() {
     </Fragment>
   )
 }
+
+const MainIssueWindow = ({
+  issues,
+  hoveredRowIndex,
+  setHoveredRowIndex,
+  showTimeTrackerLauncher,
+  setShowTimeTrackerLauncher,
+  inputRef,
+  setSelectedTask
+}) => {
+  const [height, setHeight] = useState(null)
+  const [width, setWidth] = useState(null)
+  const [selectedRowIndex, setSelectedRowIndex] = useState(null)
+
+  const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
+    useState()
+  const ref = React.useRef()
+
+  useEffect(() => {
+    if (window) {
+      setHeight(window.innerHeight)
+      setWidth(window.innerWidth)
+    }
+  }, [])
+
+  useHotkeys(
+    'up, k',
+    () => {
+      setIsChangingDirectionWithKeys(true)
+      let direction = hoveredRowIndex - 1
+      ref.current.scrollToItem(direction)
+      setHoveredRowIndex(direction)
+      setSelectedRowIndex(direction)
+    },
+    { enableOnTags: ['INPUT'] },
+    [hoveredRowIndex]
+  )
+  useHotkeys(
+    'down, j',
+    () => {
+      setIsChangingDirectionWithKeys(true)
+      let direction = hoveredRowIndex + 1
+      ref.current.scrollToItem(direction)
+      setHoveredRowIndex(direction)
+      setSelectedRowIndex(direction)
+    },
+    { enableOnTags: ['INPUT'] },
+    [hoveredRowIndex]
+  )
+
+  return (
+    <div
+      onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
+      className="task-list text-gray-700"
+    >
+      <FList
+        itemCount={issues.length}
+        itemData={{
+          issues,
+          hoveredRowIndex,
+          setHoveredRowIndex,
+          isChangingDirectionWithKeys,
+          selectedRowIndex,
+          toggleItemActive: i => {
+            setSelectedRowIndex(i)
+            // TODO: use selectedRowIndex instead
+            setSelectedTask(issues[i])
+            if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
+            inputRef?.current?.focus()
+          }
+        }}
+        itemSize={40}
+        height={height - 90 ?? 100}
+        width={width ?? 100}
+        ref={ref}
+      >
+        {Row}
+      </FList>
+    </div>
+  )
+}
+
+const Row = memo(({ data, index, style }) => {
+  // Data passed to List as "itemData" is available as props.data
+  const {
+    issues,
+    toggleItemActive,
+    setHoveredRowIndex,
+    hoveredRowIndex,
+    isChangingDirectionWithKeys,
+    selectedRowIndex
+  } = data
+  const item = issues[index]
+  const { title, duration } = item
+  const isHovered = hoveredRowIndex === index
+  const isSelected = selectedRowIndex === index
+
+  // useEffect(() => {
+  //   log(hoveredRowIndex)
+  // }, [hoveredRowIndex])
+
+  return (
+    <div
+      className={`${
+        isHovered ? 'hovered bg-gray-50' : ''
+      } flex items-center px-6 mr-2 border-b-2 border-gray-50`}
+      onMouseEnter={() => {
+        if (isChangingDirectionWithKeys) return
+        setHoveredRowIndex(index)
+      }}
+      onClick={() => {
+        log(item)
+        toggleItemActive(index)
+      }}
+      style={{
+        ...style,
+        boxShadow: `${
+          isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
+        }`
+      }}
+    >
+      <div
+        className={`w-2 h-2 ${
+          duration == null ? 'rounded-full bg-yellow-400' : ''
+        } mr-3`}
+      ></div>
+      <div
+        style={{
+          overflow: 'hidden',
+          lineHeight: 'normal',
+          textAlign: 'left',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          color: 'rgb(40, 42, 48)',
+          fontWeight: 500,
+          fontSize: '13px',
+          flexShrink: 1,
+          maxWidth: '400px'
+        }}
+      >
+        {title}
+      </div>
+      <div className="flex-1"></div>
+      {duration != undefined && (
+        <div className="text-xs text-gray-300">
+          {juration().humanize(duration)}
+        </div>
+      )}
+    </div>
+  )
+}, areEqual)
 
 const PieChartIcon = () => (
   <svg
@@ -1279,12 +1741,16 @@ const PieChartIcon = () => (
 )
 
 const TrackTimeLauncher = ({
+  issues,
   inputRef,
   selectedTask,
+  setSelectedTask,
   inputValue,
   setInputValue,
   showTimeTrackerLauncher,
-  setShowTimeTrackerLauncher
+  setShowTimeTrackerLauncher,
+  setIssues,
+  filterByUnlogged
 }) => {
   useHotkeys(
     'esc',
@@ -1293,6 +1759,40 @@ const TrackTimeLauncher = ({
     },
     { enableOnTags: ['INPUT'] }
   )
+  useHotkeys(
+    'enter',
+    () => {
+      log('ENTER')
+      if (!inputValue) return
+
+      // Remove currently hovered item from issues
+      if (filterByUnlogged) {
+        log(issues[issues.findIndex(x => x.id === selectedTask.id) + 1])
+        setSelectedTask(
+          issues[issues.findIndex(x => x.id === selectedTask.id) + 1]
+        )
+        setIssues(prev => {
+          let temp = [...prev]
+          let index = temp.findIndex(x => x.id === selectedTask.id)
+          temp[index].duration = juration().parse(inputValue)
+          return temp.filter((x, i) => selectedTask.id !== x.id)
+        })
+        setInputValue('')
+        logIssue(selectedTask).then(console.log)
+      } else {
+        setIssues(prev => {
+          let temp = [...prev]
+          let index = temp.findIndex(x => x.id === selectedTask.id)
+          temp[index].duration = juration().parse(inputValue)
+          return temp
+        })
+        setInputValue('')
+        logIssue(selectedTask).then(console.log)
+      }
+    },
+    { enableOnTags: ['INPUT'] }
+  )
+
   return showTimeTrackerLauncher ? (
     <div
       className="max-w-xs py-3 outline-none bg-white shadow-2xl border-2 border-gray-50 flex-col"
@@ -1352,7 +1852,9 @@ const Button = forwardRef(({ onClick, text, shortcut, prefix }, ref) => (
     className="flex items-center text-gray-500 text-xs flex rounded-lg border-2 border-gray-100 px-1.5 py-1 focus:outline-none"
     onClick={onClick}
   >
-    <span className="w-3.5 h-3.5 text-gray-500 stroke-current">{prefix}</span>
+    <span className="w-3.5 h-3.5 text-gray-500 stroke-current fill-current">
+      {prefix}
+    </span>
     <span
       style={{ maxWidth: '75px' }}
       className="mx-1.5 overflow-hidden whitespace-nowrap overflow-ellipsis"
@@ -1600,56 +2102,6 @@ const SubHeader = ({ syncBootstrapState, setIssues }) => {
   )
 }
 
-const Row = memo(({ data, index, style }) => {
-  // Data passed to List as "itemData" is available as props.data
-  const { issues, toggleItemActive, setHoveredRowIndex, hoveredRowIndex } = data
-  const item = issues[index]
-  const { title, duration } = item
-  const isHovered = hoveredRowIndex === index
-
-  return (
-    <div
-      className={`${
-        isHovered ? 'hovered bg-gray-50' : ''
-      } flex items-center px-6 mr-2 border-b-2 border-gray-50`}
-      onMouseEnter={() => setHoveredRowIndex(index)}
-      onClick={() => toggleItemActive(index)}
-      style={{
-        ...style
-      }}
-    >
-      <div
-        className={`w-2 h-2 ${
-          duration == null ? 'rounded-full bg-yellow-400' : ''
-        } mr-3`}
-      ></div>
-      <div
-        style={{
-          overflow: 'hidden',
-          lineHeight: 'normal',
-          textAlign: 'left',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          color: 'rgb(40, 42, 48)',
-          fontWeight: 500,
-          fontSize: '13px',
-          flexShrink: 1,
-          maxWidth: '251px'
-        }}
-      >
-        {title}
-      </div>
-      <div className="flex-1"></div>
-      {duration != undefined && (
-        <div className="text-xs text-gray-300">
-          {juration().humanize(duration)}
-        </div>
-      )}
-    </div>
-  )
-}, areEqual)
-
 const Popover = ({
   placeholder,
   shortcut,
@@ -1704,8 +2156,8 @@ const Popover = ({
       ])
     }
     triggerRef.current.addEventListener('click', click)
-    return () => triggerRef.current.removeEventListener('click', click)
-  }, [triggerRef])
+    return () => triggerRef?.current?.removeEventListener('click', click)
+  }, [triggerRef, ref])
   useEffect(() => {
     setPosition(triggerRef.current.getBoundingClientRect())
   }, [triggerRef])
@@ -1738,7 +2190,7 @@ const Popover = ({
     'esc',
     () => {
       if (pending) return
-      ref.current.blur()
+      ref?.current?.blur()
       setQuery('')
       setIsVisible(false)
       setPending(true)
@@ -1749,7 +2201,7 @@ const Popover = ({
     'enter',
     () => {
       if (pending) return
-      ref.current.blur()
+      ref?.current?.blur()
       setQuery('')
       setIsVisible(false)
       setPending(true)

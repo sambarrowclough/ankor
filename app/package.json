@@ -6,11 +6,15 @@
   "author": "Yoshihide Shiono <shiono.yoshihide@gmail.com>",
   "main": "app/background.js",
   "scripts": {
-    "dev": "nextron",
+    "dev": "nextron -p 4000",
     "build": "nextron build",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@radix-ui/react-checkbox": "0.0.15",
+    "@radix-ui/react-icons": "1.0.3",
+    "@stitches/react": "0.1.9",
+    "react-focus-on": "3.5.2",
     "@headlessui/react": "^1.2.0",
     "@popperjs/core": "^2.9.2",
     "@react-aria/button": "^3.3.2",
