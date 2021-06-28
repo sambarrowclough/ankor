@@ -23,26 +23,17 @@ import { usePopper } from 'react-popper'
 import * as _ from 'lodash'
 import { useHotkeys, useIsHotkeyPressed } from 'react-hotkeys-hook'
 import { useOverlayTriggerState } from '@react-stately/overlays'
-import {
-  useOverlay,
-  usePreventScroll,
-  useModal,
-  OverlayProvider,
-  OverlayContainer
-} from '@react-aria/overlays'
-import { useDialog } from '@react-aria/dialog'
-import { FocusScope } from '@react-aria/focus'
-import { useButton } from '@react-aria/button'
 import { useSpring, animated } from 'react-spring'
 import { createPopper } from '@popperjs/core'
 import * as Checkbox from '@radix-ui/react-checkbox'
 import { CheckIcon } from '@radix-ui/react-icons'
-import { styled } from '@stitches/react'
+import { styled, css } from '@stitches/react'
 import { VariableSizeList as List } from 'react-window'
 import { FocusOn } from 'react-focus-on'
-import { GlobalHotKeys, HotKeys, configure } from 'react-hotkeys'
+import { GlobalHotKeys, HotKeys, configure, ObserveKeys } from 'react-hotkeys'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import Filter from '../components/Filter'
 
-import loadConfig from 'next/dist/next-server/server/config'
 const str = d => JSON.stringify(d)
 const log = console.log
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
@@ -50,7 +41,7 @@ const supabaseKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-configure({ ignoreTags: ['select', 'textarea'] })
+configure({ logLevel: 'info', ignoreTags: ['input', 'select', 'textarea'] })
 
 const MenuContext = createContext('menu')
 
@@ -96,124 +87,141 @@ const StyledCheckbox = styled(Checkbox.Root, {
 //   { type: 'row', text: 'Marketing', count: '200', checked: false }
 // ]
 
-function Filter({ syncBootstrapState, setIssues }) {
-  const [open, setOpen] = useState(false)
-  const [hoverRowIndex, setHoverRowIndex] = useState(1)
-  const inputRef = useRef()
-  const listRef = useRef()
-  const menuContentRef = useRef()
-  const [items, setItems] = useState([
-    { type: 'header', name: 'Quick links' },
-    { type: 'Unlogged', name: 'Unlogged issues' },
-    { type: 'header', name: 'Project' },
-    ...syncBootstrapState.Project.map(y => ({ ...y, type: 'Project' })),
-    { type: 'header', name: 'Team' },
-    ...syncBootstrapState.Team.map(y => ({ ...y, type: 'Team' }))
-  ])
-
-  //setIssues(p => p.filter(x => x.duration == null))
-  return (
-    <>
-      <Button shortcut={'F'} text={'Filter'} onClick={_ => setOpen(p => !p)} />
-
-      <MenuContext.Provider
-        value={{
-          items,
-          setItems,
-          open,
-          setOpen,
-          menuContentRef,
-          hoverRowIndex,
-          setHoverRowIndex,
-          listRef
-        }}
-      >
-        <GlobalHotKeys
-          keyMap={{
-            open: 'f'
-          }}
-          handlers={{
-            open: () => {
-              if (document?.activeElement === inputRef?.current) return
-              setOpen(p => !p)
-            }
-          }}
-        >
-          {open && (
-            <div
-              tabindex="0"
-              className="z-50 flex px-2 py-2 flex-col bg-gray-50 rounded-xl border-2 border-gray-100"
-              style={{
-                //...style,
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                width: '400px',
-                transform: 'translate(-50%,-50%)'
-              }}
-            >
-              <MenuInput placeholder={'Filter by'} />
-              <ul ref={menuContentRef}>
-                <List
-                  ref={listRef}
-                  itemData={{
-                    items,
-                    hoverRowIndex
-                  }}
-                  height={250}
-                  itemCount={items.length}
-                  itemSize={index => (items[index].type === 'header' ? 30 : 40)}
-                  // TODO: figure out width of modal
-                  width={380}
-                >
-                  {({ index, style, data }) => {
-                    const { items, hoverRowIndex } = data
-                    const type = items[index].type
-                    const text = items[index].name
-                    const isHovered = index === hoverRowIndex
-                    const checked = items[index].checked
-                    if (type === 'header') {
-                      return <MenuItemTitle style={style}>{text}</MenuItemTitle>
-                    }
-
-                    //log("render");
-
-                    return (
-                      <MenuItem
-                        setIssues={setIssues}
-                        index={index}
-                        checked={checked}
-                        syncBootstrapState={syncBootstrapState}
-                        onMouseEnter={_ => {
-                          log('MOUSE ENTER CHANGE')
-                          setHoverRowIndex(index)
-                        }}
-                        onClick={_ => console.log(index)}
-                        text={text}
-                        count={index}
-                        style={{
-                          ...style,
-                          backgroundColor: `${isHovered ? '#eee' : ''}`
-                        }}
-                      >
-                        Row {index}
-                      </MenuItem>
-                    )
-                  }}
-                </List>
-              </ul>
-            </div>
-          )}
-        </GlobalHotKeys>
-      </MenuContext.Provider>
-    </>
-  )
+function unique(a) {
+  return a.sort().filter(function (value, index, array) {
+    return index === 0 || value !== array[index - 1]
+  })
 }
 
-const MenuInput = forwardRef(({ placeholder }) => {
+// function Filter({ syncBootstrapState, setIssues }) {
+//   const [open, setOpen] = useState(false)
+//   const [hoverRowIndex, setHoverRowIndex] = useState(1)
+//   const inputRef = useRef()
+//   const listRef = useRef()
+//   const menuContentRef = useRef()
+//   const { issues } = useContext(AppContext)
+//   const labels = syncBootstrapState.IssueLabel.filter(x =>
+//     issues.find(y => y.labelIds.includes(x.id))
+//   ).filter(Boolean)
+//   log(labels)
+
+//   const originalItems = [
+//     { type: 'header', name: 'Quick links' },
+//     { type: 'Unlogged', name: 'Unlogged issues' },
+//     { type: 'header', name: 'Label' },
+//     labels
+//   ]
+
+//   //log(syncBootstrapState.Team.filter(x => labels.find(y => y.teamId === x.id)))
+//   const [items, setItems] = useState(originalItems)
+
+//   //setIssues(p => p.filter(x => x.duration == null))
+//   return (
+//     <>
+//       <Button shortcut={'F'} text={'Filter'} onClick={_ => setOpen(p => !p)} />
+
+//       <MenuContext.Provider
+//         value={{
+//           items,
+//           setItems,
+//           open,
+//           setOpen,
+//           menuContentRef,
+//           hoverRowIndex,
+//           setHoverRowIndex,
+//           listRef
+//         }}
+//       >
+//         <GlobalHotKeys
+//           keyMap={{
+//             open: 'f'
+//           }}
+//           handlers={{
+//             open: () => {
+//               if (document?.activeElement === inputRef?.current) return
+//               setOpen(p => !p)
+//             }
+//           }}
+//         >
+//           {open && (
+//             <div
+//               tabindex="0"
+//               className="z-50 flex px-2 py-2 flex-col bg-gray-50 rounded-xl border-2 border-gray-100"
+//               style={{
+//                 //...style,
+//                 position: 'fixed',
+//                 top: '50%',
+//                 left: '50%',
+//                 width: '400px',
+//                 transform: 'translate(-50%,-50%)'
+//               }}
+//             >
+//               <MenuInput
+//                 originalItems={originalItems}
+//                 placeholder={'Filter by'}
+//               />
+//               <ul ref={menuContentRef}>
+//                 <List
+//                   ref={listRef}
+//                   itemData={{
+//                     items,
+//                     hoverRowIndex
+//                   }}
+//                   height={250}
+//                   itemCount={items.length}
+//                   itemSize={index => (items[index].type === 'header' ? 30 : 40)}
+//                   // TODO: figure out width of modal
+//                   width={380}
+//                 >
+//                   {({ index, style, data }) => {
+//                     const { items, hoverRowIndex } = data
+//                     const type = items[index].type
+//                     const text = items[index].name
+//                     const isHovered = index === hoverRowIndex
+//                     const checked = items[index].checked
+//                     if (type === 'header') {
+//                       return <MenuItemTitle style={style}>{text}</MenuItemTitle>
+//                     }
+
+//                     //log("render");
+
+//                     return (
+//                       <MenuItem
+//                         setIssues={setIssues}
+//                         index={index}
+//                         checked={checked}
+//                         syncBootstrapState={syncBootstrapState}
+//                         onMouseEnter={_ => {
+//                           log('MOUSE ENTER CHANGE')
+//                           setHoverRowIndex(index)
+//                         }}
+//                         onClick={_ => console.log(index)}
+//                         text={text}
+//                         count={index}
+//                         style={{
+//                           ...style,
+//                           backgroundColor: `${isHovered ? '#eee' : ''}`
+//                         }}
+//                       >
+//                         Row {index}
+//                       </MenuItem>
+//                     )
+//                   }}
+//                 </List>
+//               </ul>
+//             </div>
+//           )}
+//         </GlobalHotKeys>
+//       </MenuContext.Provider>
+//     </>
+//   )
+// }
+
+const MenuInput = forwardRef(({ placeholder, originalItems }) => {
   const {
     items,
     setItems,
+    open,
     setOpen,
     menuContentRef,
     setHoverRowIndex,
@@ -226,15 +234,10 @@ const MenuInput = forwardRef(({ placeholder }) => {
 
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
+
   return (
     <FocusOn
       shards={[menuContentRef]}
-      onEscapeKey={() => {
-        setOpen(false)
-        setItems(items)
-        log('ESCAPE CHANGE')
-        setHoverRowIndex && setHoverRowIndex(1)
-      }}
       onClickOutside={_ => {
         log('click outside')
         setOpen(false)
@@ -246,9 +249,17 @@ const MenuInput = forwardRef(({ placeholder }) => {
           multiSelectUp: 'shift+up',
           select: 'enter',
           down: 'down',
-          up: 'up'
+          up: 'up',
+          close: 'esc'
         }}
         handlers={{
+          close: () => {
+            setOpen(false)
+            setItems(items)
+            log('ESCAPE CHANGE')
+            setHoverRowIndex && setHoverRowIndex(1)
+          },
+
           // TODO: holding down Down key should keep moving the hoverRowIndex down
           up: () => {
             setHoverRowIndex(p => {
@@ -331,27 +342,34 @@ const MenuInput = forwardRef(({ placeholder }) => {
           }
         }}
       >
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={e => {
-            const { value } = e.target
-            if (loading) {
-              return setLoading(false)
-            }
-            log('INPUT CHANGE')
-            setHoverRowIndex && setHoverRowIndex(1)
-            setQuery(value)
-            setItems(
-              items.filter(x => {
-                if (x.type === 'header') return x
-                return x.name.toLowerCase().includes(value.toLowerCase())
-              })
-            )
-          }}
-          class="w-full flex bg-gray-50 p-1 outline-none focus:outline-none px-3 py-2 border-b-2 border-gray-100"
-          placeholder={placeholder}
-        />
+        <ObserveKeys only={['escape', 'down', 'up', 'enter']}>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => {
+              const { value } = e.target
+
+              if (loading) {
+                return setLoading(false)
+              }
+              setQuery(value)
+
+              if (!value && originalItems.length) return setItems(originalItems)
+
+              log('INPUT CHANGE')
+              setHoverRowIndex && setHoverRowIndex(1)
+
+              setItems(
+                originalItems.filter(x => {
+                  if (x.type === 'header') return x
+                  return x.name.toLowerCase().includes(value.toLowerCase())
+                })
+              )
+            }}
+            class="w-full flex bg-gray-50 p-1 outline-none focus:outline-none px-3 py-2 border-b-2 border-gray-100"
+            placeholder={placeholder}
+          />
+        </ObserveKeys>
       </HotKeys>
     </FocusOn>
   )
@@ -371,12 +389,12 @@ const MenuItem = ({
   count,
   checked = false,
   index,
-  setIssues,
   syncBootstrapState,
   ...rest
 }) => {
   //const [checked, setChecked] = useState(false);
   const { setItems, hoverRowIndex } = useContext(MenuContext)
+  const { issues, setIssues, filterConfig } = useContext(AppContext)
 
   return (
     <li
@@ -402,19 +420,23 @@ const MenuItem = ({
                 completedIssues = _.uniqBy(completedIssues, 'id')
               }
 
+              let { key, type } = filterConfig
               const filtered = checked.reduce((acc, item) => {
                 acc.push(
                   ...filter(
                     item.type.toUpperCase(),
                     item.id,
-                    completedIssues
-                    //syncBootstrapState.Issue
+
+                    // Filter only the currently in view issues
+                    filter(type, key, completedIssues)
                   )
                 )
                 return acc
               }, [])
 
-              setIssues(filtered)
+              setIssues(
+                filtered.length ? filtered : filter(type, key, completedIssues)
+              )
               return temp
             })
           }
@@ -842,9 +864,11 @@ function uuid() {
   )
 }
 
-let filter = (by, key, d) => {
+export let filter = (by, key, d) => {
   let results = []
-  log(by, key)
+  if (by) {
+    by = by.toUpperCase()
+  }
   if (!d) return results
   switch (by) {
     case 'CONTENT':
@@ -875,7 +899,7 @@ let filter = (by, key, d) => {
       results = d.filter(x => x.estimate === key)
       break
 
-    case 'LABEL':
+    case 'ISSUELABEL':
       results = d.filter(x => x.labelIds.includes(key))
       break
 
@@ -915,12 +939,6 @@ let filter = (by, key, d) => {
       return d.sort(byCompleted).reverse()
   }
 
-  // if (filterByUnlogged) {
-  //   return results
-  //     .filter(x => x.duration == null)
-  //     .sort(byCompleted)
-  //     .reverse()
-  // }
   return results.sort(byCompleted).reverse()
 }
 
@@ -932,7 +950,7 @@ const byCompleted = (a, b) => {
     : 0
 }
 
-const getCompletedIssues = syncBootstrapState => {
+export const getCompletedIssues = syncBootstrapState => {
   const completed =
     syncBootstrapState &&
     syncBootstrapState.WorkflowState &&
@@ -951,7 +969,11 @@ const getCompletedIssues = syncBootstrapState => {
   return completedIssues
 }
 
+export const AppContext = createContext('App')
+export const useAppContext = () => useContext(AppContext)
+
 function Home() {
+  const [viewComponentIsVisble, setViewComponentIsVisble] = useState(false)
   const [issues, setIssues] = useState([])
   const [viewIssuesFrom, setViewIssuesFrom] = useState('DAY')
   const [syncBootstrapState, setSyncBootstrapState] = useState([])
@@ -984,6 +1006,7 @@ function Home() {
   const firstStageContainerRef = useRef()
   const secondStageContainerRef = useRef()
   const popperElement = useRef()
+  const mainWindowRef = React.useRef()
 
   let firstBtn = useRef()
 
@@ -1205,10 +1228,10 @@ function Home() {
     //console.log(key)
     switch (key) {
       case 't':
-        setShowPopper(true)
-        // HACK
-        setTimeout(() => [inputRef.current.focus()], 0)
-        break
+      // setShowPopper(true)
+      // // HACK
+      // setTimeout(() => [inputRef.current.focus()], 0)
+      // break
       case 'j':
         setCurrentHoverIndex(prev => {
           //console.log(prev)
@@ -1316,155 +1339,75 @@ function Home() {
   useIsHotkeyPressed('f') && useHotkeys('f', () => log('f'))
 
   return (
-    <Fragment>
-      <Head>
-        <title>Home - Nextron (with-typescript-tailwindcss)</title>
-      </Head>
-      {onboardingUrl ? (
-        <a
-          onClick={event => {
-            event.preventDefault()
-            require('electron').shell.openExternal(event.target.href)
-          }}
-          href={onboardingUrl}
-        >
-          Login with Linear
-        </a>
-      ) : isLoading ? (
-        <div>loading</div>
-      ) : (
-        <>
-          <div>
-            {filterStage === 0 ? (
-              <div
-                ref={firstStageContainerRef}
-                style={{
-                  boxShadow: 'rgba(0, 0, 0, 0.2) 0px 16px 60px'
-                }}
-                className="z-50 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
-              >
-                {/* // TODO scroll on */}
-                <div className="filter-table flex-col overflow-x-scroll">
-                  {[
-                    // 'status',
-                    // 'priority',
-                    // 'assigne',
-                    // 'subscriber',
-                    // 'creator',
-                    // 'estimate',
-                    // 'label',
-                    // 'cycle',
-                    'project',
-                    // 'milestone',
-                    // 'relationship',
-                    'team',
-                    'all'
-                    // 'due_date',
-                    // 'auto_closed'
-                  ].map(type => (
-                    <div>
-                      <a
-                        onClick={e => {
-                          if (type === 'all') {
-                            setFilterStage(-1)
-                            setFilterConfig({})
-                            return setFilterBy(type)
-                          }
-
-                          setFilterStage(1)
-                          setFilterBy(type)
-                        }}
-                        href="#"
-                        className="filter-row flex hover:bg-gray-100 transition-all py-2 px-2 rounded-md text-gray-500 text-sm items-center mx-2"
-                      >
-                        <div className="filter-icon mx-2">
-                          <svg
-                            width="20"
-                            height="20"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke="currentColor"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="1.5"
-                              d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
-                            ></path>
-                          </svg>
-                        </div>
-                        <div className="filter-content">Filter by {type}</div>
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : filterStage === 1 ? (
-              <>
-                <div className="flex z-50 fixed top-0 bg-white rounded-lg left-10 flex-col ">
-                  <div className="pill flex rounded-md bg-white text-xs text-gray-400 py-1 px-2 mx-3 mt-3">
-                    <div className="mr-1">{filterBy}</div>
-                  </div>
-                </div>
-
+    <AppContext.Provider
+      value={{
+        issues,
+        setIssues,
+        viewComponentIsVisble,
+        setViewComponentIsVisble,
+        filterConfig,
+        mainWindowRef,
+        setShowTimeTrackerLauncher,
+        state: syncBootstrapState
+      }}
+    >
+      <Fragment>
+        <Head>
+          <title>Home - Nextron (with-typescript-tailwindcss)</title>
+        </Head>
+        {onboardingUrl ? (
+          <a
+            onClick={event => {
+              event.preventDefault()
+              require('electron').shell.openExternal(event.target.href)
+            }}
+            href={onboardingUrl}
+          >
+            Login with Linear
+          </a>
+        ) : isLoading ? (
+          <div>loading</div>
+        ) : (
+          <>
+            <div>
+              {filterStage === 0 ? (
                 <div
+                  ref={firstStageContainerRef}
                   style={{
                     boxShadow: 'rgba(0, 0, 0, 0.2) 0px 16px 60px'
                   }}
-                  className="z-40 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
+                  className="z-50 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
                 >
-                  {false && (
-                    <div className="border-b-2 border-gray-50 mb-3">
-                      <div className="px-2 py-4  ml-3 mt-3 flex items-center">
-                        <a
-                          href="#"
-                          onClick={() => {
-                            setFilterStage(0)
-                          }}
-                          className="bg-gray-100 w-6 h-6 rounded-full mr-2 flex items-center pl-1 text-gray-400"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke="currentColor"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="1.5"
-                              d="M10.25 6.75L4.75 12L10.25 17.25"
-                            ></path>
-                            <path
-                              stroke="currentColor"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="1.5"
-                              d="M19.25 12H5"
-                            ></path>
-                          </svg>
-                        </a>
-                        <input
-                          className="outline-none text-lg "
-                          placeholder={`Filter by ${filterBy}`}
-                        />
-                      </div>
-                    </div>
-                  )}
                   {/* // TODO scroll on */}
-                  <div className="filter-table flex-col overflow-x-scroll my-2">
-                    {syncBootstrapState[
-                      convertFilterByLinearType(filterBy)
-                    ]?.map(({ id, name }) => (
+                  <div className="filter-table flex-col overflow-x-scroll">
+                    {[
+                      // 'status',
+                      // 'priority',
+                      // 'assigne',
+                      // 'subscriber',
+                      // 'creator',
+                      // 'estimate',
+                      // 'label',
+                      // 'cycle',
+                      'project',
+                      // 'milestone',
+                      // 'relationship',
+                      'team',
+                      'all'
+                      // 'due_date',
+                      // 'auto_closed'
+                    ].map(type => (
                       <div>
                         <a
                           onClick={e => {
-                            setFilterConfig({
-                              key: id,
-                              type: filterBy.toUpperCase()
-                            })
-                            setFilterStage(-1)
+                            if (type === 'all') {
+                              setFilterStage(-1)
+                              setFilterConfig({})
+                              return setFilterBy(type)
+                            }
+
+                            setFilterStage(1)
+                            setFilterBy(type)
                           }}
                           href="#"
                           className="filter-row flex hover:bg-gray-100 transition-all py-2 px-2 rounded-md text-gray-500 text-sm items-center mx-2"
@@ -1485,94 +1428,286 @@ function Home() {
                               ></path>
                             </svg>
                           </div>
-                          <div className="filter-content">
-                            View issues from {name}
-                          </div>
+                          <div className="filter-content">Filter by {type}</div>
                         </a>
                       </div>
                     ))}
                   </div>
                 </div>
-              </>
-            ) : (
-              ''
-            )}
+              ) : filterStage === 1 ? (
+                <>
+                  <div className="flex z-50 fixed top-0 bg-white rounded-lg left-10 flex-col ">
+                    <div className="pill flex rounded-md bg-white text-xs text-gray-400 py-1 px-2 mx-3 mt-3">
+                      <div className="mr-1">{filterBy}</div>
+                    </div>
+                  </div>
 
-            <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
-              <Button
-                ref={firstBtn}
-                // onClick={_ => {
-                //   alert(1)
-                // }}
-                prefix={<ArrowsExpandIcon />}
-                text={currentView ?? 'Issues'}
-                shortcut={'I'}
-              />
+                  <div
+                    style={{
+                      boxShadow: 'rgba(0, 0, 0, 0.2) 0px 16px 60px'
+                    }}
+                    className="z-40 fixed top-10 bg-white rounded-lg right-10 left-10 bottom-20 flex-col overflow-hidden overflow-y-scroll"
+                  >
+                    {false && (
+                      <div className="border-b-2 border-gray-50 mb-3">
+                        <div className="px-2 py-4  ml-3 mt-3 flex items-center">
+                          <a
+                            href="#"
+                            onClick={() => {
+                              setFilterStage(0)
+                            }}
+                            className="bg-gray-100 w-6 h-6 rounded-full mr-2 flex items-center pl-1 text-gray-400"
+                          >
+                            <svg
+                              width="16"
+                              height="16"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M10.25 6.75L4.75 12L10.25 17.25"
+                              ></path>
+                              <path
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M19.25 12H5"
+                              ></path>
+                            </svg>
+                          </a>
+                          <input
+                            className="outline-none text-lg "
+                            placeholder={`Filter by ${filterBy}`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {/* // TODO scroll on */}
+                    <div className="filter-table flex-col overflow-x-scroll my-2">
+                      {syncBootstrapState[
+                        convertFilterByLinearType(filterBy)
+                      ]?.map(({ id, name }) => (
+                        <div>
+                          <a
+                            onClick={e => {
+                              setFilterConfig({
+                                key: id,
+                                type: filterBy.toUpperCase()
+                              })
+                              setFilterStage(-1)
+                            }}
+                            href="#"
+                            className="filter-row flex hover:bg-gray-100 transition-all py-2 px-2 rounded-md text-gray-500 text-sm items-center mx-2"
+                          >
+                            <div className="filter-icon mx-2">
+                              <svg
+                                width="20"
+                                height="20"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke="currentColor"
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="1.5"
+                                  d="M19.25 19.25L15.5 15.5M4.75 11C4.75 7.54822 7.54822 4.75 11 4.75C14.4518 4.75 17.25 7.54822 17.25 11C17.25 14.4518 14.4518 17.25 11 17.25C7.54822 17.25 4.75 14.4518 4.75 11Z"
+                                ></path>
+                              </svg>
+                            </div>
+                            <div className="filter-content">
+                              View issues from {name}
+                            </div>
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                ''
+              )}
 
-              <Popover
-                triggerRef={firstBtn}
-                shortcut={'I'}
-                syncBootstrapState={syncBootstrapState}
-                placeholder={'View issues from...'}
-                onSelectItem={e => {
-                  setFilterConfig({
-                    key: e.item.id,
-                    type: e.item.type.toUpperCase()
-                  })
-                  setIsVisible(false)
-                  setCurrentView(e.item.name)
-                }}
-              />
+              <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
+                <Button
+                  ref={firstBtn}
+                  // onClick={_ => {
+                  //   alert(1)
+                  // }}
+                  prefix={<ArrowsExpandIcon />}
+                  text={currentView ?? 'Issues'}
+                  shortcut={'I'}
+                />
 
-              <div className="flex-1"></div>
+                <Popover
+                  triggerRef={firstBtn}
+                  shortcut={'I'}
+                  syncBootstrapState={syncBootstrapState}
+                  placeholder={'View issues from...'}
+                  onSelectItem={e => {
+                    setFilterConfig({
+                      key: e.item.id,
+                      type: e.item.type.toUpperCase()
+                    })
+                    setIsVisible(false)
+                    setCurrentView(e.item.name)
+                  }}
+                />
 
-              <Filter
+                <div className="flex-1"></div>
+
+                <Filter setIssues={setIssues} state={syncBootstrapState} />
+
+                <Sort />
+
+                <Button
+                  prefix={<PieChartIcon />}
+                  shortcut={'R'}
+                  text={'Report'}
+                  onClick={_ => setIsReportOpen(p => !p)}
+                />
+              </div>
+
+              <div className="relative">
+                <ReportPanel
+                  issues={issues}
+                  isReportOpen={isReportOpen}
+                  setIsReportOpen={setIsReportOpen}
+                />
+
+                <MainIssueWindow
+                  issues={issues}
+                  hoveredRowIndex={hoveredRowIndex}
+                  setHoveredRowIndex={setHoveredRowIndex}
+                  showTimeTrackerLauncher={showTimeTrackerLauncher}
+                  setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
+                  inputRef={inputRef}
+                  setSelectedTask={setSelectedTask}
+                />
+              </div>
+
+              <TrackTimeLauncher
+                issues={issues}
                 setIssues={setIssues}
-                syncBootstrapState={syncBootstrapState}
-              />
-
-              <Button
-                prefix={<PieChartIcon />}
-                shortcut={'R'}
-                text={'Report'}
-                onClick={_ => setIsReportOpen(p => !p)}
-              />
-            </div>
-
-            <div className="relative">
-              <ReportPanel
-                issues={issues}
-                isReportOpen={isReportOpen}
-                setIsReportOpen={setIsReportOpen}
-              />
-
-              <MainIssueWindow
-                issues={issues}
-                hoveredRowIndex={hoveredRowIndex}
-                setHoveredRowIndex={setHoveredRowIndex}
+                inputRef={inputRef}
+                selectedTask={selectedTask}
+                setSelectedTask={setSelectedTask}
+                inputValue={inputValue}
+                setInputValue={setInputValue}
                 showTimeTrackerLauncher={showTimeTrackerLauncher}
                 setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
-                inputRef={inputRef}
-                setSelectedTask={setSelectedTask}
               />
             </div>
+          </>
+        )}
+      </Fragment>
+    </AppContext.Provider>
+  )
+}
 
-            <TrackTimeLauncher
-              issues={issues}
-              setIssues={setIssues}
-              filterByUnlogged={filterByUnlogged}
-              inputRef={inputRef}
-              selectedTask={selectedTask}
-              setSelectedTask={setSelectedTask}
-              inputValue={inputValue}
-              setInputValue={setInputValue}
-              showTimeTrackerLauncher={showTimeTrackerLauncher}
-              setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
-            />
-          </div>
-        </>
-      )}
-    </Fragment>
+const StyledContent = styled(DropdownMenu.Content, {
+  minWidth: 130,
+  backgroundColor: 'white',
+  borderRadius: 6,
+  padding: '5 0',
+  border: '1px solid #F3F4F6'
+  //boxShadow: '0px 5px 15px -5px hsla(206,22%,7%,.15)'
+})
+
+const StyledArrow = styled(DropdownMenu.Arrow, {
+  fill: 'white'
+})
+
+const StyledRadioItem = styled(DropdownMenu.RadioItem, {
+  fontSize: 13,
+  padding: '5px 10px',
+  borderRadius: 3,
+  cursor: 'default',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+
+  '&:focus': {
+    outline: 'none',
+    backgroundColor: '#F9FAFB'
+    //color: 'white'
+  }
+})
+
+const Sort = () => {
+  const { setIssues, mainWindowRef } = useContext(AppContext)
+  const [state, setState] = useState(0)
+  const [open, setOpen] = useState(false)
+
+  return (
+    <GlobalHotKeys
+      keyMap={{
+        openSort: 's'
+      }}
+      handlers={{
+        openSort: () => {
+          log('open')
+          setOpen(p => !p)
+        }
+      }}
+    >
+      <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+        <DropdownMenu.Trigger className="mx-2">
+          <Button shortcut={'S'} text={'Sort by'}></Button>
+        </DropdownMenu.Trigger>
+        <StyledContent
+          onCloseAutoFocus={e => e.preventDefault()}
+          onEscapeKeyDown={() => {
+            setOpen(false)
+            mainWindowRef.current.focus()
+          }}
+          align="end"
+          className="text-gray-700"
+        >
+          <DropdownMenu.RadioGroup value={state} onValueChange={setState}>
+            <StyledRadioItem
+              onSelect={() =>
+                setIssues(p => {
+                  return p
+                    .concat()
+                    .sort((a, b) => -a.updatedAt.localeCompare(b.updatedAt))
+                })
+              }
+              key={0}
+              value={0}
+            >
+              Last updated
+              <DropdownMenu.ItemIndicator>
+                <TickIcon />
+              </DropdownMenu.ItemIndicator>
+            </StyledRadioItem>
+
+            <StyledRadioItem
+              onSelect={() =>
+                setIssues(p => {
+                  return p
+                    .concat()
+                    .sort((a, b) => -a.createdAt.localeCompare(b.createdAt))
+                })
+              }
+              key={1}
+              value={1}
+            >
+              Last created
+              <DropdownMenu.ItemIndicator>
+                <TickIcon />
+              </DropdownMenu.ItemIndicator>
+            </StyledRadioItem>
+          </DropdownMenu.RadioGroup>
+          <StyledArrow />
+        </StyledContent>
+      </DropdownMenu.Root>
+    </GlobalHotKeys>
   )
 }
 
@@ -1581,17 +1716,18 @@ const MainIssueWindow = ({
   hoveredRowIndex,
   setHoveredRowIndex,
   showTimeTrackerLauncher,
-  setShowTimeTrackerLauncher,
   inputRef,
   setSelectedTask
 }) => {
   const [height, setHeight] = useState(null)
   const [width, setWidth] = useState(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState(null)
+  const { mainWindowRef, setShowTimeTrackerLauncher } = useContext(AppContext)
 
   const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
     useState()
-  const ref = React.useRef()
+
+  const listRef = React.useRef()
 
   useEffect(() => {
     if (window) {
@@ -1600,60 +1736,77 @@ const MainIssueWindow = ({
     }
   }, [])
 
-  useHotkeys(
-    'up, k',
-    () => {
-      setIsChangingDirectionWithKeys(true)
-      let direction = hoveredRowIndex - 1
-      ref.current.scrollToItem(direction)
-      setHoveredRowIndex(direction)
-      setSelectedRowIndex(direction)
-    },
-    { enableOnTags: ['INPUT'] },
-    [hoveredRowIndex]
-  )
-  useHotkeys(
-    'down, j',
-    () => {
-      setIsChangingDirectionWithKeys(true)
-      let direction = hoveredRowIndex + 1
-      ref.current.scrollToItem(direction)
-      setHoveredRowIndex(direction)
-      setSelectedRowIndex(direction)
-    },
-    { enableOnTags: ['INPUT'] },
-    [hoveredRowIndex]
-  )
+  useEffect(() => {
+    mainWindowRef.current.focus()
+  }, [])
 
   return (
-    <div
-      onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
-      className="task-list text-gray-700"
+    <HotKeys
+      keyMap={{
+        down: ['down', 'j'],
+        up: ['up', 'k'],
+        openTimeTracker: 'enter'
+      }}
+      handlers={{
+        openTimeTracker: () => {
+          log('openTimeTracker')
+          setShowTimeTrackerLauncher(true)
+        },
+
+        down: () => {
+          setIsChangingDirectionWithKeys(true)
+          setSelectedRowIndex(p => {
+            let direction = p + 1
+            if (direction > issues.length - 1) return p
+            listRef.current.scrollToItem(direction)
+            setHoveredRowIndex(direction)
+            setSelectedRowIndex(direction)
+          })
+        },
+
+        up: () => {
+          setIsChangingDirectionWithKeys(true)
+          setHoveredRowIndex(p => {
+            let direction = p - 1
+            if (direction < 0) return p
+            listRef.current.scrollToItem(direction)
+            setHoveredRowIndex(direction)
+            setSelectedRowIndex(direction)
+          })
+        }
+      }}
     >
-      <FList
-        itemCount={issues.length}
-        itemData={{
-          issues,
-          hoveredRowIndex,
-          setHoveredRowIndex,
-          isChangingDirectionWithKeys,
-          selectedRowIndex,
-          toggleItemActive: i => {
-            setSelectedRowIndex(i)
-            // TODO: use selectedRowIndex instead
-            setSelectedTask(issues[i])
-            if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
-            inputRef?.current?.focus()
-          }
-        }}
-        itemSize={40}
-        height={height - 90 ?? 100}
-        width={width ?? 100}
-        ref={ref}
+      <div
+        ref={mainWindowRef}
+        tabindex="0"
+        onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
+        className="task-list text-gray-700"
       >
-        {Row}
-      </FList>
-    </div>
+        <FList
+          itemCount={issues.length}
+          itemData={{
+            issues,
+            hoveredRowIndex,
+            setHoveredRowIndex,
+            isChangingDirectionWithKeys,
+            selectedRowIndex,
+            toggleItemActive: i => {
+              setSelectedRowIndex(i)
+              // TODO: use selectedRowIndex instead
+              setSelectedTask(issues[i])
+              if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
+              inputRef?.current?.focus()
+            }
+          }}
+          itemSize={40}
+          height={height - 90 ?? 100}
+          width={width ?? 100}
+          ref={listRef}
+        >
+          {Row}
+        </FList>
+      </div>
+    </HotKeys>
   )
 }
 
@@ -1749,46 +1902,39 @@ const TrackTimeLauncher = ({
   setInputValue,
   showTimeTrackerLauncher,
   setShowTimeTrackerLauncher,
-  setIssues,
-  filterByUnlogged
+  setIssues
 }) => {
+  const { mainWindowRef } = useContext(AppContext)
   useHotkeys(
     'esc',
     () => {
       if (showTimeTrackerLauncher) setShowTimeTrackerLauncher(false)
+      mainWindowRef.current.focus()
     },
     { enableOnTags: ['INPUT'] }
   )
   useHotkeys(
     'enter',
     () => {
-      log('ENTER')
+      //log('ENTER')
       if (!inputValue) return
 
-      // Remove currently hovered item from issues
-      if (filterByUnlogged) {
-        log(issues[issues.findIndex(x => x.id === selectedTask.id) + 1])
-        setSelectedTask(
-          issues[issues.findIndex(x => x.id === selectedTask.id) + 1]
-        )
-        setIssues(prev => {
-          let temp = [...prev]
-          let index = temp.findIndex(x => x.id === selectedTask.id)
-          temp[index].duration = juration().parse(inputValue)
-          return temp.filter((x, i) => selectedTask.id !== x.id)
-        })
-        setInputValue('')
-        logIssue(selectedTask).then(console.log)
-      } else {
-        setIssues(prev => {
-          let temp = [...prev]
-          let index = temp.findIndex(x => x.id === selectedTask.id)
-          temp[index].duration = juration().parse(inputValue)
-          return temp
-        })
-        setInputValue('')
-        logIssue(selectedTask).then(console.log)
-      }
+      // Validate time value
+      const duration = juration().parse(inputValue)
+      const invalid = isNaN(duration)
+      log('invalid number', invalid)
+      if (invalid) return
+
+      setIssues(prev => {
+        let temp = [...prev]
+        let index = temp.findIndex(x => x.id === selectedTask.id)
+        temp[index].duration = duration
+        return temp
+      })
+      setInputValue('')
+      setShowTimeTrackerLauncher(false)
+      mainWindowRef.current.focus()
+      logIssue(selectedTask).then(console.log)
     },
     { enableOnTags: ['INPUT'] }
   )
@@ -1815,14 +1961,16 @@ const TrackTimeLauncher = ({
           <div className="flex-1"></div>
         </div>
       )}
-      <input
-        autoFocus
-        ref={inputRef}
-        value={inputValue}
-        onChange={e => setInputValue(e.target.value)}
-        className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
-        placeholder="Track time e.g 1h 10m"
-      />
+      <ObserveKeys only={['down', 'up']}>
+        <input
+          autoFocus
+          ref={inputRef}
+          value={inputValue}
+          onChange={e => setInputValue(e.target.value)}
+          className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
+          placeholder="Track time e.g 1h 10m"
+        />
+      </ObserveKeys>
     </div>
   ) : (
     ''
@@ -1852,9 +2000,11 @@ const Button = forwardRef(({ onClick, text, shortcut, prefix }, ref) => (
     className="flex items-center text-gray-500 text-xs flex rounded-lg border-2 border-gray-100 px-1.5 py-1 focus:outline-none"
     onClick={onClick}
   >
-    <span className="w-3.5 h-3.5 text-gray-500 stroke-current fill-current">
-      {prefix}
-    </span>
+    {prefix && (
+      <span className="w-3.5 h-3.5 text-gray-500 stroke-current fill-current">
+        {prefix}
+      </span>
+    )}
     <span
       style={{ maxWidth: '75px' }}
       className="mx-1.5 overflow-hidden whitespace-nowrap overflow-ellipsis"
@@ -2118,7 +2268,8 @@ const Popover = ({
   const [selectedIndex, setSelectedIndex] = useState(null)
   const [pending, setPending] = useState(true)
   const [position, setPosition] = useState(true)
-  const [isVisible, setIsVisible] = useState(false)
+  const [isChangingDirection, setIsChangingDirection] = useState(false)
+
   const [hoverIndex, setHoverIndex] = useState(0)
   const [popper, setPopper] = useState()
   const [loading, setLoading] = useState(true)
@@ -2127,12 +2278,18 @@ const Popover = ({
   const inputRef = useRef()
   const lsRef = useRef()
 
+  const {
+    mainWindowRef,
+    viewComponentIsVisble: isVisible,
+    setViewComponentIsVisble: setIsVisible
+  } = useContext(AppContext)
+
   // Effects
   useEffect(() => {
     if (!query) return setViewProps(items)
   }, [query])
   useEffect(() => {
-    setHoverIndex(0)
+    setHoverIndex(1)
   }, [query])
   useEffect(() => {
     setViewProps(items)
@@ -2168,8 +2325,11 @@ const Popover = ({
     setLoading(false)
   }, [])
 
+  //useOnClickOutside(ref, () => setModalOpen(false))
+
   // Shortcuts
   useHotkeys('i', () => {
+    log('Issue hotkey')
     setIsVisible(true)
     setPending(true)
     ref.current.focus()
@@ -2194,6 +2354,7 @@ const Popover = ({
       setQuery('')
       setIsVisible(false)
       setPending(true)
+      mainWindowRef.current.focus()
     },
     { enableOnTags: ['INPUT'] }
   )
@@ -2205,6 +2366,7 @@ const Popover = ({
       setQuery('')
       setIsVisible(false)
       setPending(true)
+      mainWindowRef.current.focus()
       onSelectItem({
         hoverIndex,
         item: viewProps[hoverIndex]
@@ -2217,16 +2379,26 @@ const Popover = ({
   useEventListener('keydown', e => {
     if (e.code === 'ArrowDown' && isVisible && viewProps.length) {
       if (hoverIndex >= viewProps.length - 1) return
-      lsRef.current.scrollToItem(hoverIndex + 1)
-      setHoverIndex(p => p + 1)
+      setHoverIndex(p => {
+        p += 1
+        if (items[p].type === 'header') p += 1
+        lsRef.current.scrollToItem(hoverIndex + 1)
+        setIsChangingDirection(true)
+        return p
+      })
       return
     }
     // TODO: up moves cursor position in input left
     if (e.code === 'ArrowUp' && isVisible && viewProps.length) {
-      if (hoverIndex === 0) return
-      lsRef.current.scrollToItem(hoverIndex - 1)
-      setHoverIndex(p => p - 1)
-      return
+      // Don't go above the first header
+      if (hoverIndex === 1) return
+      setHoverIndex(p => {
+        p = p - 1
+        if (items[p].type === 'header') p -= 1
+        lsRef.current.scrollToItem(p)
+        setIsChangingDirection(true)
+        return p
+      })
     }
   })
 
@@ -2265,13 +2437,23 @@ const Popover = ({
   if (loading) return ''
 
   return (
-    <>
+    <GlobalHotKeys
+      keyMap={{ openIssues: 'i' }}
+      handlers={{ openIssues: () => log('Open Issues Hotkey') }}
+    >
       <animated.div style={{ ...styles, zIndex: '50' }}>
         {isVisible && (
           <div
             className="fixed left-0 top-0 bottom-0 right-0"
             onClick={({ target }) => {
-              if (target.contains(popper)) setIsVisible(false)
+              if (target.contains(popper)) {
+                if (pending) return
+                ref?.current?.blur()
+                setQuery('')
+                setIsVisible(false)
+                setPending(true)
+                mainWindowRef.current.focus()
+              }
             }}
           >
             <div
@@ -2330,7 +2512,7 @@ const Popover = ({
                 >
                   {e => {
                     let { data, index, style, key } = e
-                    //log('POPOVER: List render')
+                    log('POPOVER: List render')
                     let item = viewProps[index]
                     let isHovered = hoverIndex === index
                     let isSelected = selectedIndex === item.id
@@ -2355,7 +2537,14 @@ const Popover = ({
                           })
                           setSelectedIndex(item.id)
                         }}
-                        onMouseEnter={() => setHoverIndex(index)}
+                        onMouseEnter={() => {
+                          log('onMouseEnter popoover')
+                          if (isChangingDirection) {
+                            setIsChangingDirection(false)
+                          } else {
+                            setHoverIndex(index)
+                          }
+                        }}
                         className={`text-sm ${
                           isHovered ? 'text-gray-800' : 'text-gray-600'
                         } flex items-center px-4`}
@@ -2383,18 +2572,7 @@ const Popover = ({
                         <div className="flex-1"></div>
                         {isSelected && (
                           <div className="fill-current text-gray-400">
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              class="h-3.5 w-3.5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fill-rule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clip-rule="evenodd"
-                              />
-                            </svg>
+                            <TickIcon />
                           </div>
                         )}
 
@@ -2418,8 +2596,23 @@ const Popover = ({
           </div>
         )}
       </animated.div>
-    </>
+    </GlobalHotKeys>
   )
 }
+
+const TickIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-3.5 w-3.5"
+    viewBox="0 0 20 20"
+    fill="currentColor"
+  >
+    <path
+      fill-rule="evenodd"
+      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+      clip-rule="evenodd"
+    />
+  </svg>
+)
 
 export default Home
