@@ -22,7 +22,7 @@ import { GlobalHotKeys, configure, ObserveKeys } from 'react-hotkeys'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
-import { juration, uuidv4 } from 'utils/helpers'
+import { juration, uuidv4, byCompleted } from 'utils/helpers'
 
 const str = d => JSON.stringify(d)
 const log = console.log
@@ -165,14 +165,6 @@ export function filter(by, key, d) {
 
 filter.displayName = 'filter'
 
-const byCompleted = (a, b) => {
-  return a.completedAt < b.completedAt
-    ? -1
-    : a.completedAt > b.completedAt
-    ? 1
-    : 0
-}
-
 export const getCompletedIssues = function getCompletedIssues(
   syncBootstrapState
 ) {
@@ -206,7 +198,6 @@ AppContext.displayName = 'AppContext'
 function Home() {
   const [viewComponentIsVisble, setViewComponentIsVisble] = useState(false)
   const [issues, setIssues] = useState([])
-  const [viewIssuesFrom] = useState('DAY')
   const [syncBootstrapState, setSyncBootstrapState] = useState([])
   const [onboardingUrl, setOnboardingUrl] = useState(null)
   const [viewId, setViewId] = useState(null)
