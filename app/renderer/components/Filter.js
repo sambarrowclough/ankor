@@ -6,6 +6,7 @@ import * as Checkbox from '@radix-ui/react-checkbox'
 import { CheckIcon } from '@radix-ui/react-icons'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useAppContext, filter, getCompletedIssues } from '../pages/home'
+import { findType } from 'utils/helpers'
 
 const fadeIn = keyframes({
   '0%': { opacity: 0 },
@@ -48,32 +49,33 @@ const StyledContent = styled(Popover.Content, {
     animation: `${fadeOut} 100ms ease-in-out`
   }
 })
-
 export default function Filter({}) {
-  const { state, issues, setIssues, filterConfig } = useAppContext()
+  const { state, issues, setIssues, viewId } = useAppContext()
   const [open, setOpen] = useState(false)
   const [selectedItems, setSelectedItems] = useState([])
   useHotkeys('f', () => setTimeout(() => setOpen(p => !p)))
   useEffect(() => {
-    // Apply to filter to issues
-    let completedIssues = getCompletedIssues(state)
-    let { key, type } = filterConfig
-    let inViewIssues = filter(type, key, completedIssues)
-    const filtered = selectedItems.reduce((acc, item) => {
-      let type = findType(item.id, state)
-      console.log(item.name, type)
-      acc.push(...filter(type, item.id, issues))
-      return acc
-    }, [])
-    console.log(inViewIssues, state.IssueLabel)
-    setIssues(filtered.length ? filtered : filter(type, key, completedIssues))
-  }, [selectedItems])
+    // Apply filter to issues
+    const getInViewIssues = () => {
+      let type = findType(viewId, state)
+      let inViewIssues = filter(type, viewId, state.Issue)
+      return inViewIssues
+    }
+    const buildFilter = () => {
+      return selectedItems.reduce((acc, item) => {
+        let type = findType(item.id, state)
+        acc.push(...filter(type, item.id, inViewIssues))
+        return acc
+      }, [])
+    }
+
+    let inViewIssues = getInViewIssues()
+    const filtered = buildFilter()
+    setIssues(filtered.length ? filtered : inViewIssues)
+  }, [selectedItems, viewId])
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger>Filter (f)</Popover.Trigger>
-      {/* <span style={{ marginLeft: '9px', fontSize: '13px' }}>
-        Filters ({selectedItems.length})
-      </span> */}
       <Popover.Anchor />
       <StyledContent
         className="bg-white z-50"
@@ -92,8 +94,10 @@ export default function Filter({}) {
   )
 }
 
+Filter.displayName = 'Filter'
+
 function DropdownCombobox({ selectedItems, setSelectedItems }) {
-  const { state, filterConfig } = useAppContext()
+  const { state, filterConfig, viewId } = useAppContext()
   const [inputItems, setInputItems] = useState(filters)
   const [type, setType] = useState(null)
   const comboboxRef = useRef()
@@ -102,23 +106,25 @@ function DropdownCombobox({ selectedItems, setSelectedItems }) {
   useEffect(() => {
     switch (type) {
       case 'IssueLabel':
-        // Get available labels for filtering.
+        // Get available labels for filtering from issues currently in view.
         // E.g if the currently in view issues only have three types of labels
         // such as Done, Features, In Progress - we only want to view them filter types
-        let completedIssues = getCompletedIssues(state)
-        let { key, type } = filterConfig
-        let inViewIssues = filter(type, key, completedIssues)
-        let a = []
-        inViewIssues.forEach(x =>
-          x.labelIds.forEach(y => (y ? a.push(y) : null))
-        )
-        let availableFilters = [...new Set(a)]
-        let items = availableFilters.map(x => {
-          let found = state.IssueLabel.find(y => y.id === x)
-          if (found) return found
-        })
-        setInputItems(items)
-        //setInputItems([{ name: "No label", id: null }].concat(state.IssueLabel));
+        // returns an array of IssueLabel objects
+        const getAvailableLabels = () => {
+          let type = findType(viewId, state)
+          let inViewIssues = filter(type, viewId, state.Issue)
+          let a = []
+          inViewIssues.forEach(x =>
+            x.labelIds.forEach(y => (y ? a.push(y) : null))
+          )
+          return [...new Set(a)].map(x => {
+            let found = state.IssueLabel.find(y => y.id === x)
+            if (found) return found
+          })
+        }
+
+        let labels = getAvailableLabels()
+        setInputItems(labels)
         break
       case 'Team':
         setInputItems(state.Team)
@@ -305,19 +311,4 @@ function DropdownCombobox({ selectedItems, setSelectedItems }) {
       </ul>
     </div>
   )
-}
-
-// Helpers
-
-// Find the type of an object from its id
-// e.g '42996195-aada-4efa-87f3-f98dfd5c0655' -> Project
-const findType = (id, state) => {
-  let type = ''
-  let keys = Object.keys(state)
-  keys.forEach(key => {
-    state[key].forEach(item => {
-      if (item.id === id) type = key
-    })
-  })
-  return type
 }
