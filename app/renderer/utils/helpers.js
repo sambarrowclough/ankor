@@ -250,3 +250,83 @@ export function uuidv4() {
     return v.toString(16)
   })
 }
+
+export function filter(by, key, d) {
+  let results = []
+  if (by) {
+    by = by.toUpperCase()
+  }
+  if (!d) return results
+  switch (by) {
+    case 'CONTENT':
+      results = d.filter(x => x.title.includes(key))
+      break
+
+    case 'STATUS':
+      results = d.filter(x => x.stateId === key)
+      break
+
+    case 'PRIORITY':
+      results = d.filter(x => x.priority == key)
+      break
+
+    case 'ASSIGNEE':
+      results = d.filter(x => x.assigneeId === key)
+      break
+
+    case 'SUBSCRIBER':
+      results = d.filter(x => x.subscriberIds.includes(key))
+      break
+
+    case 'CREATOR':
+      results = d.filter(x => x.creatorId === key)
+      break
+
+    case 'ESTIMATE':
+      results = d.filter(x => x.estimate === key)
+      break
+
+    case 'ISSUELABEL':
+      results = d.filter(x => x.labelIds.includes(key))
+      break
+
+    case 'CYCLE':
+      results = d.filter(x => x.cycleId == key)
+      break
+
+    case 'PROJECT':
+      results = d.filter(x => x.projectId == key)
+      break
+
+    case 'MILESTONE':
+      // TODO
+      break
+
+    case 'RELATIONSHIP':
+      // TODO
+      break
+
+    case 'TEAM':
+      results = d.filter(x => x.teamId === key)
+      break
+
+    case 'DUE_DATE':
+      // TODO
+      break
+
+    case 'AUTO_CLOSED':
+      // TODO
+      break
+    case 'UNLOGGED':
+      results = d.filter(p => p.duration == null)
+      break
+    case 'ALL':
+      return d.sort(byCompleted).reverse()
+    default:
+      return d.sort(byCompleted).reverse()
+  }
+
+  return results.sort(byCompleted).reverse()
+}
+
+filter.displayName = 'filter'

@@ -5,8 +5,9 @@ import { styled, keyframes } from '@stitches/react'
 import * as Checkbox from '@radix-ui/react-checkbox'
 import { CheckIcon } from '@radix-ui/react-icons'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useAppContext, filter, getCompletedIssues } from '../pages/home'
-import { findType } from 'utils/helpers'
+import { findType, filter } from 'utils/helpers'
+import { useAppContext } from 'utils/useApp'
+import { Button } from 'components'
 
 const fadeIn = keyframes({
   '0%': { opacity: 0 },
@@ -75,13 +76,15 @@ export default function Filter({}) {
   }, [selectedItems, viewId])
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger>Filter (f)</Popover.Trigger>
+      <Popover.Trigger>
+        <Button shortcut={'F'}>Filter</Button>
+      </Popover.Trigger>
       <Popover.Anchor />
       <StyledContent
-        className="bg-white z-50"
+        // className="bg-white z-50"
         sideOffset={20}
         onOpenAutoFocus={e => e.preventDefault()}
-        align="center"
+        align="start"
       >
         <DropdownCombobox
           selectedItems={selectedItems}

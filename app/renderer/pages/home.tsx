@@ -1,30 +1,20 @@
-import React, {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  Fragment,
-  memo,
-  useRef,
-  forwardRef
-} from 'react'
+import React, { useState, useEffect, Fragment, useRef, forwardRef } from 'react'
 import Head from 'next/head'
 import { socket } from './socket'
 import { ipcRenderer } from 'electron'
 import useEventListener from '@use-it/event-listener'
-import { FixedSizeList as FList, areEqual } from 'react-window'
 import { createClient } from '@supabase/supabase-js'
 import * as _ from 'lodash'
 import { useHotkeys } from 'react-hotkeys-hook'
-
 import { styled } from '@stitches/react'
-import { GlobalHotKeys, configure, ObserveKeys } from 'react-hotkeys'
+import { GlobalHotKeys, configure } from 'react-hotkeys'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
-import { juration, uuidv4, byCompleted } from 'utils/helpers'
+import { juration, uuidv4 } from 'utils/helpers'
+import { useAppContext, AppContext } from 'utils/useApp'
+import { MainWindow, Button } from 'components'
 
-const str = d => JSON.stringify(d)
 const log = console.log
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
 const supabaseKey =
@@ -85,117 +75,30 @@ const logIssue = async ({ id, duration }) => {
   }
 }
 
-export function filter(by, key, d) {
-  let results = []
-  if (by) {
-    by = by.toUpperCase()
-  }
-  if (!d) return results
-  switch (by) {
-    case 'CONTENT':
-      results = d.filter(x => x.title.includes(key))
-      break
+// export const getCompletedIssues = function getCompletedIssues(
+//   syncBootstrapState
+// ) {
+//   const completed =
+//     syncBootstrapState &&
+//     syncBootstrapState.WorkflowState &&
+//     syncBootstrapState.WorkflowState.map(x =>
+//       x.type === 'completed' ? x : null
+//     ).filter(Boolean)
 
-    case 'STATUS':
-      results = d.filter(x => x.stateId === key)
-      break
+//   const completedIds = completed && completed.map(x => x.id)
+//   let completedIssues =
+//     syncBootstrapState &&
+//     syncBootstrapState.Issue &&
+//     syncBootstrapState.Issue.map(x => {
+//       if (completedIds.find(y => y === x.stateId) != null) return x
+//     }).filter(Boolean)
 
-    case 'PRIORITY':
-      results = d.filter(x => x.priority == key)
-      break
+//   return completedIssues
+// }
 
-    case 'ASSIGNEE':
-      results = d.filter(x => x.assigneeId === key)
-      break
+// getCompletedIssues.displayName = 'getCompletedIssues'
 
-    case 'SUBSCRIBER':
-      results = d.filter(x => x.subscriberIds.includes(key))
-      break
-
-    case 'CREATOR':
-      results = d.filter(x => x.creatorId === key)
-      break
-
-    case 'ESTIMATE':
-      results = d.filter(x => x.estimate === key)
-      break
-
-    case 'ISSUELABEL':
-      results = d.filter(x => x.labelIds.includes(key))
-      break
-
-    case 'CYCLE':
-      results = d.filter(x => x.cycleId == key)
-      break
-
-    case 'PROJECT':
-      results = d.filter(x => x.projectId == key)
-      break
-
-    case 'MILESTONE':
-      // TODO
-      break
-
-    case 'RELATIONSHIP':
-      // TODO
-      break
-
-    case 'TEAM':
-      results = d.filter(x => x.teamId === key)
-      break
-
-    case 'DUE_DATE':
-      // TODO
-      break
-
-    case 'AUTO_CLOSED':
-      // TODO
-      break
-    case 'UNLOGGED':
-      results = d.filter(p => p.duration == null)
-      break
-    case 'ALL':
-      return d.sort(byCompleted).reverse()
-    default:
-      return d.sort(byCompleted).reverse()
-  }
-
-  return results.sort(byCompleted).reverse()
-}
-
-filter.displayName = 'filter'
-
-export const getCompletedIssues = function getCompletedIssues(
-  syncBootstrapState
-) {
-  const completed =
-    syncBootstrapState &&
-    syncBootstrapState.WorkflowState &&
-    syncBootstrapState.WorkflowState.map(x =>
-      x.type === 'completed' ? x : null
-    ).filter(Boolean)
-
-  const completedIds = completed && completed.map(x => x.id)
-  let completedIssues =
-    syncBootstrapState &&
-    syncBootstrapState.Issue &&
-    syncBootstrapState.Issue.map(x => {
-      if (completedIds.find(y => y === x.stateId) != null) return x
-    }).filter(Boolean)
-
-  return completedIssues
-}
-
-getCompletedIssues.displayName = 'getCompletedIssues'
-
-export const AppContext = createContext('App')
-export const useAppContext = function useAppContext() {
-  return useContext(AppContext)
-}
-useAppContext.displayName = 'useAppContext'
-AppContext.displayName = 'AppContext'
-
-function Home() {
+function Test() {
   const [viewComponentIsVisble, setViewComponentIsVisble] = useState(false)
   const [issues, setIssues] = useState([])
   const [syncBootstrapState, setSyncBootstrapState] = useState([])
@@ -467,14 +370,18 @@ function Home() {
                   setIsReportOpen={setIsReportOpen}
                 />
 
-                <MainIssueWindow
+                <FList height={150} itemCount={1000} itemSize={35} width={300}>
+                  {({ index, style }) => <div style={style}>Row {index}</div>}
+                </FList>
+
+                {/* <MainIssueWindow
                   hoveredRowIndex={hoveredRowIndex}
                   setHoveredRowIndex={setHoveredRowIndex}
                   showTimeTrackerLauncher={showTimeTrackerLauncher}
                   setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
                   inputRef={inputRef}
                   setSelectedTask={setSelectedTask}
-                />
+                /> */}
               </div>
 
               <TrackTimeLauncher
@@ -526,7 +433,7 @@ const StyledRadioItem = styled(DropdownMenu.RadioItem, {
 })
 
 const Sort = () => {
-  const { setIssues } = useContext(AppContext)
+  const { setIssues } = useAppContext()
   const [state, setState] = useState(0)
   const [open, setOpen] = useState(false)
 
@@ -596,150 +503,150 @@ const Sort = () => {
   )
 }
 
-const MainIssueWindow = ({
-  hoveredRowIndex,
-  setHoveredRowIndex,
-  showTimeTrackerLauncher,
-  inputRef,
-  setSelectedTask
-}) => {
-  const [height, setHeight] = useState(null)
-  const [width, setWidth] = useState(null)
-  const [selectedRowIndex, setSelectedRowIndex] = useState(null)
-  const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
-    useState(false)
-  const listRef = React.useRef()
-  const { setShowTimeTrackerLauncher, issues } = useAppContext()
-  console.log(issues)
-  useEffect(() => {
-    setIsChangingDirectionWithKeys(true)
-    listRef.current.scrollToItem(hoveredRowIndex)
-  }, [hoveredRowIndex])
-  useEffect(() => {
-    if (window) {
-      setHeight(window.innerHeight)
-      setWidth(window.innerWidth)
-    }
-  }, [])
+// const MainIssueWindow = ({}) => {
+//   const [height, setHeight] = useState(null)
+//   const [width, setWidth] = useState(null)
+//   const [selectedRowIndex, setSelectedRowIndex] = useState(null)
+//   const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
+//     useState(false)
+//   const listRef = React.useRef()
+//   const {
+//     setShowTimeTrackerLauncher,
+//     issues,
+//     hoveredRowIndex,
+//     setHoveredRowIndex
+//   } = useAppContext()
 
-  const setPrev = () => {
-    setHoveredRowIndex(p => {
-      let direction = p - 1
-      if (direction < 0) return p
-      setSelectedRowIndex(direction)
-      return direction
-    })
-  }
+//   useEffect(() => {
+//     //setIsChangingDirectionWithKeys(true)
+//     listRef.current.scrollToItem(hoveredRowIndex)
+//   }, [hoveredRowIndex])
 
-  const setNext = () => {
-    setHoveredRowIndex(p => {
-      const atBottom = issues.length - 1 === p
-      let direction = p + 1
-      if (atBottom) return p
-      setSelectedRowIndex(direction)
-      return direction
-    })
-  }
+//   useLayoutEffect(() => {
+//     if (window) {
+//       console.log(height)
+//       setHeight(window.innerHeight)
+//       setWidth(window.innerWidth)
+//     }
+//   }, [])
 
-  useHotkeys('up', _ => setPrev())
-  useHotkeys('down', _ => setNext())
+//   const setPrev = () => {
+//     setHoveredRowIndex(p => {
+//       let direction = p - 1
+//       if (direction < 0) return p
+//       setSelectedRowIndex(direction)
+//       return direction
+//     })
+//   }
 
-  return (
-    <div
-      onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
-      className="task-list text-gray-700"
-    >
-      <FList
-        itemCount={issues.length}
-        itemData={{
-          issues,
-          hoveredRowIndex,
-          setHoveredRowIndex,
-          isChangingDirectionWithKeys,
-          selectedRowIndex,
-          toggleItemActive: i => {
-            setSelectedRowIndex(i)
-            setSelectedTask(issues[i])
-            if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
-            inputRef?.current?.focus()
-          }
-        }}
-        itemSize={40}
-        height={height - 90 ?? 100}
-        width={width ?? 100}
-        ref={listRef}
-      >
-        {Row}
-      </FList>
-    </div>
-  )
-}
+//   const setNext = () => {
+//     setHoveredRowIndex(p => {
+//       const atBottom = issues.length - 1 === p
+//       let direction = p + 1
+//       if (atBottom) return p
+//       setSelectedRowIndex(direction)
+//       return direction
+//     })
+//   }
 
-const Row = memo(({ data, index, style }) => {
-  const {
-    issues,
-    toggleItemActive,
-    setHoveredRowIndex,
-    hoveredRowIndex,
-    isChangingDirectionWithKeys,
-    selectedRowIndex
-  } = data
-  const item = issues[index]
-  const { title, duration } = item
-  const isHovered = hoveredRowIndex === index
-  const isSelected = selectedRowIndex === index
+//   useHotkeys('up', _ => setPrev())
+//   useHotkeys('down', _ => setNext())
 
-  return (
-    <div
-      className={`${
-        isHovered ? 'hovered bg-gray-50' : ''
-      } flex items-center px-6 mr-2 border-b-2 border-gray-50`}
-      onMouseEnter={() => {
-        if (isChangingDirectionWithKeys) return
-        setHoveredRowIndex(index)
-      }}
-      onClick={() => {
-        log(item)
-        toggleItemActive(index)
-      }}
-      style={{
-        ...style,
-        boxShadow: `${
-          isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
-        }`
-      }}
-    >
-      <div
-        className={`w-2 h-2 ${
-          duration == null ? 'rounded-full bg-yellow-400' : ''
-        } mr-3`}
-      ></div>
-      <div
-        style={{
-          overflow: 'hidden',
-          lineHeight: 'normal',
-          textAlign: 'left',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          color: 'rgb(40, 42, 48)',
-          fontWeight: 500,
-          fontSize: '13px',
-          flexShrink: 1,
-          maxWidth: '400px'
-        }}
-      >
-        {title}
-      </div>
-      <div className="flex-1"></div>
-      {duration != undefined && (
-        <div className="text-xs text-gray-300">
-          {juration().humanize(duration)}
-        </div>
-      )}
-    </div>
-  )
-}, areEqual)
+//   return (
+//     <div
+//       //onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
+//       className="task-list text-gray-700"
+//     >
+//       <FList
+//         itemCount={issues.length}
+//         // itemData={{
+//         //   issues,
+//         //   hoveredRowIndex,
+//         //   setHoveredRowIndex,
+//         //   isChangingDirectionWithKeys,
+//         //   selectedRowIndex,
+//         //   toggleItemActive: i => {
+//         //     setSelectedRowIndex(i)
+//         //     setSelectedTask(issues[i])
+//         //     if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
+//         //     inputRef?.current?.focus()
+//         //   }
+//         // }}
+//         itemSize={40}
+//         height={100}
+//         width={100}
+//         ref={listRef}
+//       >
+//         {({ index, style }) => <div style={style}>Row {index}</div>}
+//       </FList>
+//     </div>
+//   )
+// }
+
+// const Row = memo(({ data, index, style }) => {
+//   const {
+//     issues,
+//     toggleItemActive,
+//     setHoveredRowIndex,
+//     hoveredRowIndex,
+//     isChangingDirectionWithKeys,
+//     selectedRowIndex
+//   } = data
+//   const item = issues[index]
+//   const { title, duration } = item
+//   const isHovered = hoveredRowIndex === index
+//   const isSelected = selectedRowIndex === index
+
+//   return (
+//     <div
+//       className={`${
+//         isHovered ? 'hovered bg-gray-50' : ''
+//       } flex items-center px-6 mr-2 border-b-2 border-gray-50`}
+//       onMouseEnter={() => {
+//         if (isChangingDirectionWithKeys) return
+//         setHoveredRowIndex(index)
+//       }}
+//       onClick={() => {
+//         toggleItemActive(index)
+//       }}
+//       style={{
+//         ...style,
+//         boxShadow: `${
+//           isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
+//         }`
+//       }}
+//     >
+//       <div
+//         className={`w-2 h-2 ${
+//           duration == null ? 'rounded-full bg-yellow-400' : ''
+//         } mr-3`}
+//       ></div>
+//       <div
+//         style={{
+//           overflow: 'hidden',
+//           lineHeight: 'normal',
+//           textAlign: 'left',
+//           whiteSpace: 'nowrap',
+//           overflow: 'hidden',
+//           textOverflow: 'ellipsis',
+//           color: 'rgb(40, 42, 48)',
+//           fontWeight: 500,
+//           fontSize: '13px',
+//           flexShrink: 1,
+//           maxWidth: '400px'
+//         }}
+//       >
+//         {title}
+//       </div>
+//       <div className="flex-1"></div>
+//       {duration != undefined && (
+//         <div className="text-xs text-gray-300">
+//           {juration().humanize(duration)}
+//         </div>
+//       )}
+//     </div>
+//   )
+// }, areEqual)
 
 const PieChartIcon = () => (
   <svg
@@ -753,17 +660,15 @@ const PieChartIcon = () => (
   </svg>
 )
 
-const TrackTimeLauncher = ({
-  issues,
-  inputRef,
-  selectedTask,
-  setSelectedTask,
-  inputValue,
-  setInputValue,
-  showTimeTrackerLauncher,
-  setShowTimeTrackerLauncher,
-  setIssues
-}) => {
+const TrackTimeLauncher = ({}) => {
+  const {
+    inputRef,
+    selectedIssue,
+    showTimeTrackerLauncher,
+    setShowTimeTrackerLauncher,
+    setIssues
+  } = useAppContext()
+  const [inputValue, setInputValue] = useState('')
   useHotkeys(
     'esc',
     () => {
@@ -785,13 +690,13 @@ const TrackTimeLauncher = ({
 
       setIssues(prev => {
         let temp = [...prev]
-        let index = temp.findIndex(x => x.id === selectedTask.id)
+        let index = temp.findIndex(x => x.id === selectedIssue.id)
         temp[index].duration = duration
         return temp
       })
       setInputValue('')
       setShowTimeTrackerLauncher(false)
-      logIssue(selectedTask).then(console.log)
+      logIssue(selectedIssue).then(console.log)
     },
     { enableOnTags: ['INPUT'] }
   )
@@ -807,58 +712,29 @@ const TrackTimeLauncher = ({
         color: '#eee',
         borderRadius: '8px',
         minWidth: '320px'
-        //display: showPopper ? 'flex' : 'none'
       }}
     >
-      {selectedTask?.title && (
+      {selectedIssue?.title && (
         <div className="flex mb-2">
           <div className="max-w-xs overflow-hidden overflow-ellipsis whitespace-nowrap text-xs text-gray-400 px-2 py-1 mx-4 bg-gray-100 rounded">
-            {selectedTask.title}
+            {selectedIssue.title}
           </div>
           <div className="flex-1"></div>
         </div>
       )}
-      <ObserveKeys only={['down', 'up']}>
-        <input
-          autoFocus
-          ref={inputRef}
-          value={inputValue}
-          onChange={e => setInputValue(e.target.value)}
-          className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
-          placeholder="Track time e.g 1h 10m"
-        />
-      </ObserveKeys>
+      <input
+        autoFocus
+        ref={inputRef}
+        value={inputValue}
+        onChange={e => setInputValue(e.target.value)}
+        className="outline-none bg-white text-md text-gray-600 w-full px-4 py-0"
+        placeholder="Track time e.g 1h 10m"
+      />
     </div>
   ) : (
     ''
   )
 }
-
-const Button = forwardRef(({ onClick, text, shortcut, prefix }, ref) => (
-  <button
-    ref={ref}
-    className="flex items-center text-gray-500 text-xs flex rounded-lg border-2 border-gray-100 px-1.5 py-1 focus:outline-none"
-    onClick={onClick}
-  >
-    {prefix && (
-      <span className="w-3.5 h-3.5 text-gray-500 stroke-current fill-current">
-        {prefix}
-      </span>
-    )}
-    <span
-      style={{ maxWidth: '75px' }}
-      className="mx-1.5 overflow-hidden whitespace-nowrap overflow-ellipsis"
-    >
-      {text}
-    </span>
-    <span
-      style={{ fontSize: '10px' }}
-      className="bg-gray-100 rounded px-1.5 py-.5 text-gray-500"
-    >
-      {shortcut}
-    </span>
-  </button>
-))
 
 const ReportPanel = ({ isReportOpen, setIsReportOpen, issues }) => {
   const [total, setTotal] = useState('0')
@@ -902,6 +778,68 @@ const TickIcon = () => (
   </svg>
 )
 
-Home.displayName = 'Home'
+export default function Home() {
+  const [issues, setIssues] = useState([])
+  const [viewId, setViewId] = useState(null)
+  const [state, setState] = useState({})
+  const [showTimeTrackerLauncher, setShowTimeTrackerLauncher] = useState(false)
+  const [selectedIssue, setSelectedIssue] = useState()
+  useEffect(() => {
+    let { data } = JSON.parse(
+      require('fs').readFileSync('../sync-bootstrap.json').toString()
+    )
+    setState(JSON.parse(data.syncBootstrap.state))
+  }, [])
 
-export default Home
+  useEffect(() => {
+    if (state.Issue) {
+      setIssues(state.Issue)
+    }
+  }, [state])
+
+  return (
+    <AppContext.Provider
+      value={{
+        issues,
+        setIssues,
+        state,
+        viewId,
+        setViewId,
+        showTimeTrackerLauncher,
+        setShowTimeTrackerLauncher,
+        selectedIssue,
+        setSelectedIssue
+      }}
+    >
+      <Header />
+
+      <div className="relative">
+        <ReportPanel />
+
+        <MainWindow />
+      </div>
+
+      <TrackTimeLauncher />
+    </AppContext.Provider>
+  )
+}
+
+const Header = () => {
+  return (
+    <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600 pt-7">
+      <Filter />
+      <Issue />
+
+      <div className="flex-1"></div>
+
+      <Sort />
+
+      <Button
+        prefix={<PieChartIcon />}
+        shortcut={'R'}
+        text={'Report'}
+        onClick={_ => setIsReportOpen(p => !p)}
+      />
+    </div>
+  )
+}
