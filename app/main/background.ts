@@ -19,24 +19,24 @@ if (isProd) {
 }
 
 ipcMain.on('DONE', (event, arg) => {
-  console.log('recieved', arg) // prints "ping"
-  //event.reply('asynchronous-reply', 'pong');
+  console.log('recieved', arg)
   mainWindow && mainWindow.show()
 })
 ;(async () => {
   await app.whenReady()
 
-  //if (app.dock) app.dock.hide()
-  // appTry = new Tray(__dirname + '/IconTemplate.png')
-  // appTry.setToolTip('Youtube Music Player')
-  // appTry.on('click', clicked)
+  if (app.dock) app.dock.hide()
+  console.log(__dirname)
+  appTry = new Tray(__dirname + '/../icon.png')
+  appTry.setToolTip('ankor')
+  appTry.on('click', clicked)
 
   mainWindow = createWindow('main', {
-    width: 1000,
-    height: 600
+    width: 450,
+    height: 600,
+    show: false,
+    resizable: false
   })
-
-  //app.dock.hide()
 
   if (isProd) {
     await mainWindow.loadURL('app://./home.html')

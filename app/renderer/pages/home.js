@@ -940,7 +940,7 @@ const viewIssuesFrom = (issues, date) => {
 
 const DateComponent = () => {
   const { setIssues, state: appState } = useAppContext()
-  const [state, setState] = useState(0)
+  const [state, setState] = useState(4)
   const [open, setOpen] = useState(false)
   const [dateText, setDateText] = useState('Date')
   useHotkeys('d', () => setOpen(p => !p))
