@@ -19,6 +19,7 @@ export const MainWindow = ({}) => {
   const [selectedRowIndex, setSelectedRowIndex] = useState(0)
   const [height, setHeight] = useState(null)
   const [width, setWidth] = useState(null)
+  const listRef = useRef()
   const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
     useState(false)
   useLayoutEffect(() => {
@@ -27,6 +28,10 @@ export const MainWindow = ({}) => {
       setWidth(window.innerWidth)
     }
   }, [])
+  useEffect(() => {
+    //setIsChangingDirectionWithKeys(true)
+    listRef.current.scrollToItem(hoveredRowIndex)
+  }, [hoveredRowIndex])
   const setPrev = () => {
     setHoveredRowIndex(p => {
       let direction = p - 1
@@ -51,6 +56,7 @@ export const MainWindow = ({}) => {
 
   return (
     <FList
+      ref={listRef}
       height={height - 100}
       itemCount={issues.length}
       itemSize={40}

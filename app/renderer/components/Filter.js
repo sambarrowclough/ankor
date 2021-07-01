@@ -8,7 +8,9 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { findType, filter } from 'utils/helpers'
 import { useAppContext } from 'utils/useApp'
 import { Button } from 'components'
-
+import { useSnap } from 'utils/useSnap'
+import { animated } from 'react-spring'
+import { menuContentStyles, menuItemStyles } from './Issue'
 const fadeIn = keyframes({
   '0%': { opacity: 0 },
   '100%': { opacity: 1 }
@@ -79,25 +81,56 @@ export default function Filter({}) {
       <Popover.Trigger>
         <Button shortcut={'F'}>Filter</Button>
       </Popover.Trigger>
-      <Popover.Anchor />
-      <StyledContent
-        // className="bg-white z-50"
-        sideOffset={20}
-        onOpenAutoFocus={e => e.preventDefault()}
-        align="start"
-      >
+      <PopoverMenuContent open={open} onOpenAutoFocus={e => e.preventDefault()}>
         <DropdownCombobox
           selectedItems={selectedItems}
           setSelectedItems={setSelectedItems}
           open={open}
           setOpen={setOpen}
         />
-      </StyledContent>
+      </PopoverMenuContent>
     </Popover.Root>
   )
 }
 
 Filter.displayName = 'Filter'
+
+export const PopoverMenuContent = ({ open, children, ...props }) => {
+  const snap = useSnap(open)
+  return snap(
+    (styles, item) =>
+      item && (
+        <animated.div style={{ ...styles }}>
+          <Popover.Content
+            sideOffset={5}
+            align={'start'}
+            as={animated.div}
+            style={{
+              ...styles,
+              transformOrigin: 'var(--radix-popover-content-transform-origin)',
+              borderRadius: 6,
+              fontSize: 13,
+              backgroundColor: '#fff',
+              boxShadow: 'rgba(0, 0, 0, 0.09) 0px 3px 12px',
+              color: 'black'
+            }}
+            forceMount
+            {...props}
+          >
+            <animated.div
+              style={{
+                //...slideInStyles,
+                overflow: 'hidden',
+                width: '200px'
+              }}
+            >
+              {children}
+            </animated.div>
+          </Popover.Content>
+        </animated.div>
+      )
+  )
+}
 
 function DropdownCombobox({ selectedItems, setSelectedItems }) {
   const { state, filterConfig, viewId } = useAppContext()
@@ -240,8 +273,8 @@ function DropdownCombobox({ selectedItems, setSelectedItems }) {
     <div
       ref={comboboxRef}
       style={{
-        borderRadius: '8px',
-        boxShadow: 'rgba(0, 0, 0, 0.09) 0px 3px 12px'
+        //...menuContentStyles,
+        width: '500px'
       }}
     >
       <div style={{ borderBottom: '1px solid #eee' }} {...getComboboxProps()}>
@@ -275,7 +308,10 @@ function DropdownCombobox({ selectedItems, setSelectedItems }) {
                   style={{
                     background: `${highlightedIndex === index ? '#eee' : ''}`,
                     display: 'flex',
-                    padding: '7px 10px'
+                    padding: '7px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#282a30'
                   }}
                   key={`${item.name}${index}`}
                   {...getItemProps({
@@ -293,8 +329,10 @@ function DropdownCombobox({ selectedItems, setSelectedItems }) {
                 style={{
                   background: `${highlightedIndex === index ? '#eee' : ''}`,
                   display: 'flex',
+                  padding: '7px 14px',
+                  display: 'flex',
                   alignItems: 'center',
-                  padding: '5px 10px'
+                  color: '#282a30'
                 }}
                 key={`${item}${index}`}
                 {...getItemProps({ item, index })}

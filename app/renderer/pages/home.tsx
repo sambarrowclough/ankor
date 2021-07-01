@@ -14,6 +14,8 @@ import Issue from '../components/Issue'
 import { juration, uuidv4 } from 'utils/helpers'
 import { useAppContext, AppContext } from 'utils/useApp'
 import { MainWindow, Button } from 'components'
+import { useSnap } from 'utils/useSnap'
+import { animated } from 'react-spring'
 
 const log = console.log
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
@@ -32,9 +34,9 @@ try {
 }
 
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
-  return JSON.parse(
-    require('fs').readFileSync('../sync-bootstrap.json').toString()
-  )
+  // return JSON.parse(
+  //   require('fs').readFileSync('../sync-bootstrap.json').toString()
+  // )
   return fetch(
     `https://linear-oauth-tester.sambarrowclough.repl.co/bootstrap?accessToken=${accessToken}`,
     {
@@ -98,309 +100,333 @@ const logIssue = async ({ id, duration }) => {
 
 // getCompletedIssues.displayName = 'getCompletedIssues'
 
-function Test() {
-  const [viewComponentIsVisble, setViewComponentIsVisble] = useState(false)
-  const [issues, setIssues] = useState([])
-  const [syncBootstrapState, setSyncBootstrapState] = useState([])
-  const [onboardingUrl, setOnboardingUrl] = useState(null)
-  const [viewId, setViewId] = useState(null)
-  const [isLoading, setIsIsLoading] = useState(true)
-  const [inputValue, setInputValue] = useState(null)
-  const [isReportOpen, setIsReportOpen] = useState(false)
-  const [selectedTask, setSelectedTask] = useState(null)
-  const [showTimeTrackerLauncher, setShowTimeTrackerLauncher] = useState(false)
-  const inputRef = useRef()
+// function Test() {
+//   const [viewComponentIsVisble, setViewComponentIsVisble] = useState(false)
+//   const [issues, setIssues] = useState([])
+//   const [syncBootstrapState, setSyncBootstrapState] = useState([])
+//   const [onboardingUrl, setOnboardingUrl] = useState(null)
+//   const [viewId, setViewId] = useState(null)
+//   const [isLoading, setIsIsLoading] = useState(true)
+//   const [inputValue, setInputValue] = useState(null)
+//   const [isReportOpen, setIsReportOpen] = useState(false)
+//   const [selectedTask, setSelectedTask] = useState(null)
+//   const [showTimeTrackerLauncher, setShowTimeTrackerLauncher] = useState(false)
+//   const inputRef = useRef()
 
-  // const handleIssueStateChange = () => {
-  //   let completedIssues = getCompletedIssues(syncBootstrapState)
-  //   if (completedIssues) {
-  //     completedIssues = _.uniqBy(completedIssues, 'id')
-  //   }
+//   // const handleIssueStateChange = () => {
+//   //   let completedIssues = getCompletedIssues(syncBootstrapState)
+//   //   if (completedIssues) {
+//   //     completedIssues = _.uniqBy(completedIssues, 'id')
+//   //   }
 
-  //   const startOfDay = new Date()
-  //   startOfDay.setHours(0, 0, 0, 0)
-  //   const lastThreeDays = new Date(
-  //     startOfDay.getTime() - 3 * 24 * 60 * 60 * 1000
-  //   )
-  //   const lastWeek = new Date(startOfDay.getTime() - 7 * 24 * 60 * 60 * 1000)
-  //   const lastMonth = new Date()
-  //   lastMonth.setHours(0, 0, 0, 0)
-  //   lastMonth.setMonth(lastMonth.getMonth() - 3)
+//   //   const startOfDay = new Date()
+//   //   startOfDay.setHours(0, 0, 0, 0)
+//   //   const lastThreeDays = new Date(
+//   //     startOfDay.getTime() - 3 * 24 * 60 * 60 * 1000
+//   //   )
+//   //   const lastWeek = new Date(startOfDay.getTime() - 7 * 24 * 60 * 60 * 1000)
+//   //   const lastMonth = new Date()
+//   //   lastMonth.setHours(0, 0, 0, 0)
+//   //   lastMonth.setMonth(lastMonth.getMonth() - 3)
 
-  //   let { key, type } = filterConfig
-  //   return setIssues(filter(type, key, completedIssues))
+//   //   let { key, type } = filterConfig
+//   //   return setIssues(filter(type, key, completedIssues))
 
-  //   switch (viewIssuesFrom) {
-  //     case 'DAY':
-  //       completedIssues &&
-  //         setIssues(
-  //           completedIssues
-  //             .filter(x => {
-  //               if (new Date(x.completedAt).getTime() > startOfDay) return x
-  //             })
-  //             .sort(byCompleted)
-  //             .reverse()
-  //         )
-  //       break
+//   //   switch (viewIssuesFrom) {
+//   //     case 'DAY':
+//   //       completedIssues &&
+//   //         setIssues(
+//   //           completedIssues
+//   //             .filter(x => {
+//   //               if (new Date(x.completedAt).getTime() > startOfDay) return x
+//   //             })
+//   //             .sort(byCompleted)
+//   //             .reverse()
+//   //         )
+//   //       break
 
-  //     case 'THREE_DAYS':
-  //       completedIssues &&
-  //         setIssues(
-  //           completedIssues
-  //             .filter(x => {
-  //               if (new Date(x.completedAt).getTime() > lastThreeDays) return x
-  //             })
-  //             .sort(byCompleted)
-  //             .reverse()
-  //         )
-  //       break
+//   //     case 'THREE_DAYS':
+//   //       completedIssues &&
+//   //         setIssues(
+//   //           completedIssues
+//   //             .filter(x => {
+//   //               if (new Date(x.completedAt).getTime() > lastThreeDays) return x
+//   //             })
+//   //             .sort(byCompleted)
+//   //             .reverse()
+//   //         )
+//   //       break
 
-  //     case 'WEEK':
-  //       completedIssues &&
-  //         setIssues(
-  //           completedIssues
-  //             .filter(x => {
-  //               if (new Date(x.completedAt).getTime() > lastWeek) return x
-  //             })
-  //             .sort(byCompleted)
-  //             .reverse()
-  //         )
-  //       break
+//   //     case 'WEEK':
+//   //       completedIssues &&
+//   //         setIssues(
+//   //           completedIssues
+//   //             .filter(x => {
+//   //               if (new Date(x.completedAt).getTime() > lastWeek) return x
+//   //             })
+//   //             .sort(byCompleted)
+//   //             .reverse()
+//   //         )
+//   //       break
 
-  //     case 'MONTH':
-  //       completedIssues &&
-  //         setIssues(
-  //           completedIssues
-  //             .filter(x => {
-  //               if (new Date(x.completedAt).getTime() > lastMonth) return x
-  //             })
-  //             .sort(byCompleted)
-  //             .reverse()
-  //         )
-  //       break
+//   //     case 'MONTH':
+//   //       completedIssues &&
+//   //         setIssues(
+//   //           completedIssues
+//   //             .filter(x => {
+//   //               if (new Date(x.completedAt).getTime() > lastMonth) return x
+//   //             })
+//   //             .sort(byCompleted)
+//   //             .reverse()
+//   //         )
+//   //       break
 
-  //     case 'ALL':
-  //       completedIssues &&
-  //         setIssues(completedIssues.sort(byCompleted).reverse())
-  //       break
-  //   }
-  // }
+//   //     case 'ALL':
+//   //       completedIssues &&
+//   //         setIssues(completedIssues.sort(byCompleted).reverse())
+//   //       break
+//   //   }
+//   // }
 
-  useEffect(async () => {
-    const userLocal = store.get('user')
-    // Handle new users
-    if (!userLocal) {
-      const id = uuidv4()
-      const unsubscribe = supabase
-        //.from('users')
-        .from(`users:id=eq.${id}`)
-        .on('INSERT', async payload => {
-          console.log('Change received!', payload)
-          const { new: user } = payload
-          store.set('user', user)
-          ipcRenderer.send('DONE', 'DONE')
-          let syncBootstrapData
-          const { accessToken } = user
-          try {
-            // syncBootstrapData = await fetchSyncBootstrapDataFromServer({
-            //   accessToken
-            // })
-            syncBootstrapData = syncBootstrapMockData
-          } catch (e) {
-            console.error(
-              'Something went wrong getting syncBoostrap data from Linear',
-              e
-            )
-          }
-          if (!syncBootstrapData)
-            return alert('Failed to fetch data from Linear!')
-          const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
-          setSyncBootstrapState(all)
-          setOnboardingUrl(null)
-        })
-        .subscribe()
-      const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read&state=${id}`
-      setOnboardingUrl(url)
-    } else {
-      let syncBootstrapData
-      const { accessToken } = userLocal
-      try {
-        syncBootstrapData = await fetchSyncBootstrapDataFromServer({
-          accessToken
-        })
-      } catch (e) {
-        console.error(
-          'Something went wrong getting syncBoostrap data from Linear',
-          e
-        )
-      }
-      if (!syncBootstrapData) return alert('Failed to fetch data from Linear!')
-      const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
-      const log = console.log
+//   useEffect(async () => {
+//     const userLocal = store.get('user')
+//     // Handle new users
+//     if (!userLocal) {
+//       const id = uuidv4()
+//       const unsubscribe = supabase
+//         //.from('users')
+//         .from(`users:id=eq.${id}`)
+//         .on('INSERT', async payload => {
+//           console.log('Change received!', payload)
+//           const { new: user } = payload
+//           store.set('user', user)
+//           ipcRenderer.send('DONE', 'DONE')
+//           let syncBootstrapData
+//           const { accessToken } = user
+//           try {
+//             // syncBootstrapData = await fetchSyncBootstrapDataFromServer({
+//             //   accessToken
+//             // })
+//             syncBootstrapData = syncBootstrapMockData
+//           } catch (e) {
+//             console.error(
+//               'Something went wrong getting syncBoostrap data from Linear',
+//               e
+//             )
+//           }
+//           if (!syncBootstrapData)
+//             return alert('Failed to fetch data from Linear!')
+//           const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
+//           setSyncBootstrapState(all)
+//           setOnboardingUrl(null)
+//         })
+//         .subscribe()
+//       const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read&state=${id}`
+//       setOnboardingUrl(url)
+//     } else {
+//       let syncBootstrapData
+//       const { accessToken } = userLocal
+//       try {
+//         syncBootstrapData = await fetchSyncBootstrapDataFromServer({
+//           accessToken
+//         })
+//       } catch (e) {
+//         console.error(
+//           'Something went wrong getting syncBoostrap data from Linear',
+//           e
+//         )
+//       }
+//       if (!syncBootstrapData) return alert('Failed to fetch data from Linear!')
+//       const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
 
-      // Map logged issues to Linear issues
-      const loggedIssues = await getLoggedIssues()
-      if (!loggedIssues) return
-      loggedIssues.forEach(x => {
-        const index = all.Issue.findIndex(y => y.id === x.id)
-        if (index != -1) {
-          all.Issue[index].duration = x.duration
-        }
-      })
+//       // Pair logged issues to Linear issues
+//       const loggedIssues = await getLoggedIssues()
+//       if (!loggedIssues) return
+//       loggedIssues.forEach(x => {
+//         const index = all.Issue.findIndex(y => y.id === x.id)
+//         if (index != -1) {
+//           all.Issue[index].duration = x.duration
+//         }
+//       })
 
-      // If the task has a startedAt, completedAt, and they have opted in to
-      // do automatic tracking, figure out the time a task took
-      let autoTrackTime = false
-      if (autoTrackTime) {
-        for (let i = 0; i < all.Issue.length; i++) {
-          let issue = all.Issue[i]
-          if (issue.completedAt && issue.startedAt) {
-            let diff = new Date(issue.completedAt) - new Date(issue.startedAt)
-            if (diff > 0) {
-              // TODO: keep getting "Uncaught juration.stringify(): Unable to stringify a non-numeric value"
-              let duration = juration().humanize(Math.round(diff))
-              issue.duration = duration
-              log(duration)
-            }
-          }
-        }
-      }
-      setSyncBootstrapState(all)
-      setIsIsLoading(false)
-    }
-  }, [])
+//       // If the task has a startedAt, completedAt, and they have opted in to
+//       // do automatic tracking, figure out the time a task took
+//       let autoTrackTime = false
+//       if (autoTrackTime) {
+//         for (let i = 0; i < all.Issue.length; i++) {
+//           let issue = all.Issue[i]
+//           if (issue.completedAt && issue.startedAt) {
+//             let diff = new Date(issue.completedAt) - new Date(issue.startedAt)
+//             if (diff > 0) {
+//               // TODO: keep getting "Uncaught juration.stringify(): Unable to stringify a non-numeric value"
+//               let duration = juration().humanize(Math.round(diff))
+//               issue.duration = duration
+//               log(duration)
+//             }
+//           }
+//         }
+//       }
+//       setSyncBootstrapState(all)
+//       setIsIsLoading(false)
+//     }
+//   }, [])
 
-  useEffect(() => {
-    socket.on('DONE', function (payload) {
-      console.log('CLIENT#received', payload)
-      if (payload && payload.data && payload.data.title) {
-        setSyncBootstrapState(prev => {
-          let temp = { ...prev }
-          temp.Issue.push(payload.data)
-          return temp
-        })
+//   useEffect(() => {
+//     socket.on('DONE', function (payload) {
+//       console.log('CLIENT#received', payload)
+//       if (payload && payload.data && payload.data.title) {
+//         setSyncBootstrapState(prev => {
+//           let temp = { ...prev }
+//           temp.Issue.push(payload.data)
+//           return temp
+//         })
 
-        // Emit msg to backend to open up window
-        ipcRenderer.send('DONE', 'DONE')
-      }
+//         // Emit msg to backend to open up window
+//         ipcRenderer.send('DONE', 'DONE')
+//       }
+//     })
+//     // unsubscribe from event for preventing memory leaks
+//     return () => {
+//       socket.off('DONE')
+//     }
+//   }, [])
+
+//   useEffect(() => {
+//     setIssues(syncBootstrapState.Issue)
+//   }, [syncBootstrapState])
+
+//   // Keyboard shortcuts
+//   useEventListener('keydown', function handler({ key }) {
+//     switch (key) {
+//       case 'j':
+//         break
+//       case 'k':
+//         break
+//       case 'f':
+//         break
+//       case 'Enter':
+//         break
+//       case 'Escape':
+//         setInputValue('')
+//         break
+//       default:
+//         break
+//     }
+//   })
+//   const [hoveredRowIndex, setHoveredRowIndex] = React.useState(null)
+
+//   return (
+//     <AppContext.Provider
+//       value={{
+//         issues,
+//         setIssues,
+//         viewComponentIsVisble,
+//         setViewComponentIsVisble,
+//         setShowTimeTrackerLauncher,
+//         state: syncBootstrapState,
+//         viewId,
+//         setViewId
+//       }}
+//     >
+//       <Fragment>
+//         <Head>
+//           <title>Home - Nextron (with-typescript-tailwindcss)</title>
+//         </Head>
+//         {onboardingUrl ? (
+//           <a
+//             onClick={event => {
+//               event.preventDefault()
+//               require('electron').shell.openExternal(event.target.href)
+//             }}
+//             href={onboardingUrl}
+//           >
+//             Login with Linear
+//           </a>
+//         ) : isLoading ? (
+//           <div>loading</div>
+//         ) : (
+//           <>
+//             <div>
+//               <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
+//                 <Issue />
+
+//                 <div className="flex-1"></div>
+
+//                 <Filter setIssues={setIssues} state={syncBootstrapState} />
+
+//                 <Sort />
+
+//                 <Button
+//                   prefix={<PieChartIcon />}
+//                   shortcut={'R'}
+//                   text={'Report'}
+//                   onClick={_ => setIsReportOpen(p => !p)}
+//                 />
+//               </div>
+
+//               <div className="relative">
+//                 <ReportPanel />
+
+//                 <FList height={150} itemCount={1000} itemSize={35} width={300}>
+//                   {({ index, style }) => <div style={style}>Row {index}</div>}
+//                 </FList>
+
+//                 {/* <MainIssueWindow
+//                   hoveredRowIndex={hoveredRowIndex}
+//                   setHoveredRowIndex={setHoveredRowIndex}
+//                   showTimeTrackerLauncher={showTimeTrackerLauncher}
+//                   setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
+//                   inputRef={inputRef}
+//                   setSelectedTask={setSelectedTask}
+//                 /> */}
+//               </div>
+
+//               <TrackTimeLauncher
+//                 issues={issues}
+//                 setIssues={setIssues}
+//                 inputRef={inputRef}
+//                 selectedTask={selectedTask}
+//                 setSelectedTask={setSelectedTask}
+//                 inputValue={inputValue}
+//                 setInputValue={setInputValue}
+//                 showTimeTrackerLauncher={showTimeTrackerLauncher}
+//                 setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
+//               />
+//             </div>
+//           </>
+//         )}
+//       </Fragment>
+//     </AppContext.Provider>
+//   )
+// }
+
+const getStateWithLoggedIssues = async () => {
+  let syncBootstrapData
+  const user = store.get('user')
+  const { accessToken } = user
+  try {
+    syncBootstrapData = await fetchSyncBootstrapDataFromServer({
+      accessToken
     })
-    // unsubscribe from event for preventing memory leaks
-    return () => {
-      socket.off('DONE')
-    }
-  }, [])
+  } catch (e) {
+    console.error(
+      'Something went wrong getting syncBoostrap data from Linear',
+      e
+    )
+  }
+  if (!syncBootstrapData) return alert('Failed to fetch data from Linear!')
+  const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
 
-  useEffect(() => {
-    setIssues(syncBootstrapState.Issue)
-  }, [syncBootstrapState])
-
-  // Keyboard shortcuts
-  useEventListener('keydown', function handler({ key }) {
-    switch (key) {
-      case 'j':
-        break
-      case 'k':
-        break
-      case 'f':
-        break
-      case 'Enter':
-        break
-      case 'Escape':
-        setInputValue('')
-        break
-      default:
-        break
+  // Pair logged issues to Linear issues
+  const loggedIssues = await getLoggedIssues()
+  if (!loggedIssues) return
+  loggedIssues.forEach(x => {
+    const index = all.Issue.findIndex(y => y.id === x.id)
+    if (index != -1) {
+      all.Issue[index].duration = x.duration
     }
   })
-  const [hoveredRowIndex, setHoveredRowIndex] = React.useState(null)
-
-  return (
-    <AppContext.Provider
-      value={{
-        issues,
-        setIssues,
-        viewComponentIsVisble,
-        setViewComponentIsVisble,
-        setShowTimeTrackerLauncher,
-        state: syncBootstrapState,
-        viewId,
-        setViewId
-      }}
-    >
-      <Fragment>
-        <Head>
-          <title>Home - Nextron (with-typescript-tailwindcss)</title>
-        </Head>
-        {onboardingUrl ? (
-          <a
-            onClick={event => {
-              event.preventDefault()
-              require('electron').shell.openExternal(event.target.href)
-            }}
-            href={onboardingUrl}
-          >
-            Login with Linear
-          </a>
-        ) : isLoading ? (
-          <div>loading</div>
-        ) : (
-          <>
-            <div>
-              <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600">
-                <Issue />
-
-                <div className="flex-1"></div>
-
-                <Filter setIssues={setIssues} state={syncBootstrapState} />
-
-                <Sort />
-
-                <Button
-                  prefix={<PieChartIcon />}
-                  shortcut={'R'}
-                  text={'Report'}
-                  onClick={_ => setIsReportOpen(p => !p)}
-                />
-              </div>
-
-              <div className="relative">
-                <ReportPanel
-                  issues={issues}
-                  isReportOpen={isReportOpen}
-                  setIsReportOpen={setIsReportOpen}
-                />
-
-                <FList height={150} itemCount={1000} itemSize={35} width={300}>
-                  {({ index, style }) => <div style={style}>Row {index}</div>}
-                </FList>
-
-                {/* <MainIssueWindow
-                  hoveredRowIndex={hoveredRowIndex}
-                  setHoveredRowIndex={setHoveredRowIndex}
-                  showTimeTrackerLauncher={showTimeTrackerLauncher}
-                  setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
-                  inputRef={inputRef}
-                  setSelectedTask={setSelectedTask}
-                /> */}
-              </div>
-
-              <TrackTimeLauncher
-                issues={issues}
-                setIssues={setIssues}
-                inputRef={inputRef}
-                selectedTask={selectedTask}
-                setSelectedTask={setSelectedTask}
-                inputValue={inputValue}
-                setInputValue={setInputValue}
-                showTimeTrackerLauncher={showTimeTrackerLauncher}
-                setShowTimeTrackerLauncher={setShowTimeTrackerLauncher}
-              />
-            </div>
-          </>
-        )}
-      </Fragment>
-    </AppContext.Provider>
-  )
+  return all
 }
 
 const StyledContent = styled(DropdownMenu.Content, {
@@ -432,221 +458,72 @@ const StyledRadioItem = styled(DropdownMenu.RadioItem, {
   }
 })
 
+const byDateUpdated = (a, b) => -a.updatedAt.localeCompare(b.updatedAt)
+const byDateCreated = (a, b) => -a.updatedAt.localeCompare(b.createAt)
+
 const Sort = () => {
   const { setIssues } = useAppContext()
   const [state, setState] = useState(0)
   const [open, setOpen] = useState(false)
-
+  useHotkeys('s', () => setOpen(p => !p))
+  const snap = useSnap(open)
   return (
-    <GlobalHotKeys
-      keyMap={{
-        openSort: 's'
-      }}
-      handlers={{
-        openSort: () => {
-          log('open')
-          setOpen(p => !p)
-        }
-      }}
-    >
-      <DropdownMenu.Root open={open} onOpenChange={setOpen}>
-        <DropdownMenu.Trigger className="mx-2">
-          <Button shortcut={'S'} text={'Sort by'}></Button>
-        </DropdownMenu.Trigger>
-        <StyledContent
-          onCloseAutoFocus={e => e.preventDefault()}
-          onEscapeKeyDown={() => {
-            setOpen(false)
-          }}
-          align="end"
-          className="text-gray-700"
-        >
-          <DropdownMenu.RadioGroup value={state} onValueChange={setState}>
-            <StyledRadioItem
-              onSelect={() =>
-                setIssues(p => {
-                  return p
-                    .concat()
-                    .sort((a, b) => -a.updatedAt.localeCompare(b.updatedAt))
-                })
-              }
-              key={0}
-              value={0}
-            >
-              Last updated
-              <DropdownMenu.ItemIndicator>
-                <TickIcon />
-              </DropdownMenu.ItemIndicator>
-            </StyledRadioItem>
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger className="mx-2">
+        <Button shortcut={'S'} text={'Sort by'}></Button>
+      </DropdownMenu.Trigger>
+      {snap(
+        (styles, item) =>
+          item && (
+            <animated.div style={{ ...styles }}>
+              <StyledContent
+                style={{ ...styles }}
+                onCloseAutoFocus={e => e.preventDefault()}
+                onEscapeKeyDown={() => {
+                  setOpen(false)
+                }}
+                align="start"
+                className="text-gray-700"
+              >
+                <DropdownMenu.RadioGroup value={state} onValueChange={setState}>
+                  <StyledRadioItem
+                    onSelect={() =>
+                      setIssues(p => {
+                        return p.concat().sort(byDateUpdated)
+                      })
+                    }
+                    key={0}
+                    value={0}
+                  >
+                    Last updated
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
 
-            <StyledRadioItem
-              onSelect={() =>
-                setIssues(p => {
-                  return p
-                    .concat()
-                    .sort((a, b) => -a.createdAt.localeCompare(b.createdAt))
-                })
-              }
-              key={1}
-              value={1}
-            >
-              Last created
-              <DropdownMenu.ItemIndicator>
-                <TickIcon />
-              </DropdownMenu.ItemIndicator>
-            </StyledRadioItem>
-          </DropdownMenu.RadioGroup>
-          <StyledArrow />
-        </StyledContent>
-      </DropdownMenu.Root>
-    </GlobalHotKeys>
+                  <StyledRadioItem
+                    onSelect={() =>
+                      setIssues(p => {
+                        return p.concat().sort(byDateCreated)
+                      })
+                    }
+                    key={1}
+                    value={1}
+                  >
+                    Last created
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+                </DropdownMenu.RadioGroup>
+                <StyledArrow />
+              </StyledContent>
+            </animated.div>
+          )
+      )}
+    </DropdownMenu.Root>
   )
 }
-
-// const MainIssueWindow = ({}) => {
-//   const [height, setHeight] = useState(null)
-//   const [width, setWidth] = useState(null)
-//   const [selectedRowIndex, setSelectedRowIndex] = useState(null)
-//   const [isChangingDirectionWithKeys, setIsChangingDirectionWithKeys] =
-//     useState(false)
-//   const listRef = React.useRef()
-//   const {
-//     setShowTimeTrackerLauncher,
-//     issues,
-//     hoveredRowIndex,
-//     setHoveredRowIndex
-//   } = useAppContext()
-
-//   useEffect(() => {
-//     //setIsChangingDirectionWithKeys(true)
-//     listRef.current.scrollToItem(hoveredRowIndex)
-//   }, [hoveredRowIndex])
-
-//   useLayoutEffect(() => {
-//     if (window) {
-//       console.log(height)
-//       setHeight(window.innerHeight)
-//       setWidth(window.innerWidth)
-//     }
-//   }, [])
-
-//   const setPrev = () => {
-//     setHoveredRowIndex(p => {
-//       let direction = p - 1
-//       if (direction < 0) return p
-//       setSelectedRowIndex(direction)
-//       return direction
-//     })
-//   }
-
-//   const setNext = () => {
-//     setHoveredRowIndex(p => {
-//       const atBottom = issues.length - 1 === p
-//       let direction = p + 1
-//       if (atBottom) return p
-//       setSelectedRowIndex(direction)
-//       return direction
-//     })
-//   }
-
-//   useHotkeys('up', _ => setPrev())
-//   useHotkeys('down', _ => setNext())
-
-//   return (
-//     <div
-//       //onMouseOver={_ => setIsChangingDirectionWithKeys(false)}
-//       className="task-list text-gray-700"
-//     >
-//       <FList
-//         itemCount={issues.length}
-//         // itemData={{
-//         //   issues,
-//         //   hoveredRowIndex,
-//         //   setHoveredRowIndex,
-//         //   isChangingDirectionWithKeys,
-//         //   selectedRowIndex,
-//         //   toggleItemActive: i => {
-//         //     setSelectedRowIndex(i)
-//         //     setSelectedTask(issues[i])
-//         //     if (!showTimeTrackerLauncher) setShowTimeTrackerLauncher(true)
-//         //     inputRef?.current?.focus()
-//         //   }
-//         // }}
-//         itemSize={40}
-//         height={100}
-//         width={100}
-//         ref={listRef}
-//       >
-//         {({ index, style }) => <div style={style}>Row {index}</div>}
-//       </FList>
-//     </div>
-//   )
-// }
-
-// const Row = memo(({ data, index, style }) => {
-//   const {
-//     issues,
-//     toggleItemActive,
-//     setHoveredRowIndex,
-//     hoveredRowIndex,
-//     isChangingDirectionWithKeys,
-//     selectedRowIndex
-//   } = data
-//   const item = issues[index]
-//   const { title, duration } = item
-//   const isHovered = hoveredRowIndex === index
-//   const isSelected = selectedRowIndex === index
-
-//   return (
-//     <div
-//       className={`${
-//         isHovered ? 'hovered bg-gray-50' : ''
-//       } flex items-center px-6 mr-2 border-b-2 border-gray-50`}
-//       onMouseEnter={() => {
-//         if (isChangingDirectionWithKeys) return
-//         setHoveredRowIndex(index)
-//       }}
-//       onClick={() => {
-//         toggleItemActive(index)
-//       }}
-//       style={{
-//         ...style,
-//         boxShadow: `${
-//           isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
-//         }`
-//       }}
-//     >
-//       <div
-//         className={`w-2 h-2 ${
-//           duration == null ? 'rounded-full bg-yellow-400' : ''
-//         } mr-3`}
-//       ></div>
-//       <div
-//         style={{
-//           overflow: 'hidden',
-//           lineHeight: 'normal',
-//           textAlign: 'left',
-//           whiteSpace: 'nowrap',
-//           overflow: 'hidden',
-//           textOverflow: 'ellipsis',
-//           color: 'rgb(40, 42, 48)',
-//           fontWeight: 500,
-//           fontSize: '13px',
-//           flexShrink: 1,
-//           maxWidth: '400px'
-//         }}
-//       >
-//         {title}
-//       </div>
-//       <div className="flex-1"></div>
-//       {duration != undefined && (
-//         <div className="text-xs text-gray-300">
-//           {juration().humanize(duration)}
-//         </div>
-//       )}
-//     </div>
-//   )
-// }, areEqual)
 
 const PieChartIcon = () => (
   <svg
@@ -736,8 +613,9 @@ const TrackTimeLauncher = ({}) => {
   )
 }
 
-const ReportPanel = ({ isReportOpen, setIsReportOpen, issues }) => {
+const ReportPanel = ({}) => {
   const [total, setTotal] = useState('0')
+  const { isReportOpen, setIsReportOpen, issues } = useAppContext()
   useEffect(() => {
     let total = issues?.reduce((a, i) => {
       if (i.duration) {
@@ -784,11 +662,28 @@ export default function Home() {
   const [state, setState] = useState({})
   const [showTimeTrackerLauncher, setShowTimeTrackerLauncher] = useState(false)
   const [selectedIssue, setSelectedIssue] = useState()
+  const [isReportOpen, setIsReportOpen] = useState()
+  const [loading, setLoading] = useState(true)
+  // useEffect(async () => {
+  //   // Dev
+  //   // let { data } = JSON.parse(
+  //   //   require('fs').readFileSync('../sync-bootstrap.json').toString()
+  //   // )
+  //   // setState(JSON.parse(data.syncBootstrap.state))
+  // })
+
   useEffect(() => {
-    let { data } = JSON.parse(
-      require('fs').readFileSync('../sync-bootstrap.json').toString()
-    )
-    setState(JSON.parse(data.syncBootstrap.state))
+    ;(async () => {
+      const data = await getStateWithLoggedIssues()
+      // Remove cancelled issues
+      const canceled = data.WorkflowState.map(x =>
+        x.name === 'Canceled' ? x.id : null
+      ).filter(Boolean)
+      const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
+      data.Issue = issues
+      setState(data)
+      setLoading(false)
+    })()
   }, [])
 
   useEffect(() => {
@@ -797,7 +692,19 @@ export default function Home() {
     }
   }, [state])
 
-  return (
+  return loading ? (
+    <div
+      className="text-sm text-gray-600"
+      style={{
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%,-50%)'
+      }}
+    >
+      Loading...
+    </div>
+  ) : (
     <AppContext.Provider
       value={{
         issues,
@@ -808,7 +715,9 @@ export default function Home() {
         showTimeTrackerLauncher,
         setShowTimeTrackerLauncher,
         selectedIssue,
-        setSelectedIssue
+        setSelectedIssue,
+        isReportOpen,
+        setIsReportOpen
       }}
     >
       <Header />

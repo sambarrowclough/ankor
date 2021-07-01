@@ -26,7 +26,10 @@ import {
 import { styled } from '@stitches/react'
 import { byCompleted } from 'utils/helpers'
 import { useAppContext } from 'utils/useApp'
+import { useSnap } from 'utils/useSnap'
 import { Button } from 'components'
+
+const byDateUpdated = (a, b) => -a.updatedAt.localeCompare(b.updatedAt)
 
 const PopoverMenuContext = createContext('PopoverMenuContext')
 const usePopoverMenuContext = () => useContext(PopoverMenuContext)
@@ -57,9 +60,7 @@ export default function Issue() {
 
   const handelSelect = ({ id, name }) => {
     setIssues(() =>
-      state.Issue.filter(issue => issue.teamId === id)
-        .sort(byCompleted)
-        .reverse()
+      state.Issue.filter(issue => issue.teamId === id).sort(byDateUpdated)
     )
     setViewId(id)
     setOpen(false)
@@ -69,7 +70,9 @@ export default function Issue() {
   return (
     <PopoverMenuContext.Provider value={{ open }}>
       <Popover.Root open={open} onOpenChange={setOpen}>
-        <PopoverMenuTrigger shortcut={'T'}>{triggerText}</PopoverMenuTrigger>
+        <Popover.Trigger>
+          <Button shortcut={'T'} text={triggerText}></Button>
+        </Popover.Trigger>
         <PopoverMenuContent>
           <PopoverMenuInput
             placeholder={'View issues from...'}
@@ -77,12 +80,31 @@ export default function Issue() {
           />
           <PopoverMenuSeparator />
           <PopoverMenuList>
-            {state.Team.map(team => (
-              <PopoverMenuItem
-                callback={_ => console.log(team)}
-                value={team.name}
-              />
-            ))}
+            <CommandGroup heading={<GroupHeading text={'Team'} />}>
+              {state?.Team?.map(team => (
+                <PopoverMenuItem
+                  callback={_ => handelSelect(team)}
+                  value={team.name}
+                />
+              ))}
+            </CommandGroup>
+            <CommandGroup heading={<GroupHeading text={'Project'} />}>
+              {state?.Project?.map(({ id, name }) => (
+                <PopoverMenuItem
+                  callback={_ => {
+                    setIssues(() =>
+                      state.Issue.filter(issue => issue.projectId === id)
+                        .sort(byDateUpdated)
+                        .reverse()
+                    )
+                    setViewId(id)
+                    setOpen(false)
+                    setTriggerText(name)
+                  }}
+                  value={name}
+                />
+              ))}
+            </CommandGroup>
           </PopoverMenuList>
         </PopoverMenuContent>
       </Popover.Root>
@@ -91,6 +113,15 @@ export default function Issue() {
 }
 
 Issue.displayName = 'Issue'
+
+const GroupHeading = ({ text }) => (
+  <div
+    style={{ fontSize: '11px' }}
+    className="text-sm text-gray-400  px-4 py-.5"
+  >
+    {text}
+  </div>
+)
 
 const PopoverMenuList = ({ children }) => {
   return (
@@ -144,19 +175,20 @@ export const PopoverMenuSeparator = () => (
   ></div>
 )
 
+export const menuContentStyles = {
+  transformOrigin: 'var(--radix-popover-content-transform-origin)',
+  borderRadius: 6,
+  fontSize: 13,
+  backgroundColor: '#fff',
+  boxShadow: 'rgba(0, 0, 0, 0.09) 0px 3px 12px',
+  color: 'black'
+}
+
 export const PopoverMenuContent = ({ children }) => {
   const { open } = usePopoverMenuContext()
   const commandProps = useCommand()
-  const transitions = useTransition(open, {
-    from: { opacity: 0, scale: 0.96 },
-    enter: { opacity: 2, scale: 1 },
-    leave: { opacity: 0, scale: 0.96 },
-    config: { mass: 1, tension: 1000, friction: 50 }
-    //config: { mass: 1, tension: 1000, friction: 50 }
-    //config: { mass: 1, tension: 1800, friction: 90 }
-    //config: { mass: 1, tension: 5000, friction: 200 }
-  })
-  return transitions(
+  const snap = useSnap(open)
+  return snap(
     (styles, item) =>
       item && (
         <animated.div style={{ ...styles }}>
@@ -166,12 +198,7 @@ export const PopoverMenuContent = ({ children }) => {
             as={animated.div}
             style={{
               ...styles,
-              transformOrigin: 'var(--radix-popover-content-transform-origin)',
-              borderRadius: 6,
-              fontSize: 13,
-              backgroundColor: '#fff',
-              boxShadow: 'rgba(0, 0, 0, 0.09) 0px 3px 12px',
-              color: 'black'
+              ...menuContentStyles
             }}
             forceMount
           >
@@ -197,12 +224,16 @@ export const PopoverMenuContent = ({ children }) => {
   )
 }
 
-const StyledCommandItem = styled(CommandItem, {
+export const menuItemStyles = {
   display: 'flex',
   padding: '7px 14px',
   display: 'flex',
   alignItems: 'center',
-  color: '#282a30',
+  color: '#282a30'
+}
+
+const StyledCommandItem = styled(CommandItem, {
+  ...menuItemStyles,
 
   '&[data-command-item][aria-selected] ': {
     color: '#282a30',
