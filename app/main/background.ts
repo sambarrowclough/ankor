@@ -1,6 +1,10 @@
-import { app, Tray, screen, ipcMain } from 'electron'
+import { app, Tray, screen, ipcMain, autoUpdater } from 'electron'
 import serve from 'electron-serve'
 import { createWindow } from './helpers'
+
+// const server = 'https://hazel-sambarrowclough1.vercel.app'
+// const feed = `${server}/update/${process.platform}/${app.getVersion()}`
+// autoUpdater.setFeedURL(feed)
 
 let bounds: any
 let cachedBounds: any

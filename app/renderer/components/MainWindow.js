@@ -53,11 +53,18 @@ export const MainWindow = ({}) => {
 
   useHotkeys('up', _ => setPrev())
   useHotkeys('down', _ => setNext())
+  // useHotkeys('space', _ => {
+  //   setShowTimeTrackerLauncher(true)
+  //   setHoveredRowIndex(index => {
+  //     setSelectedIssue(issues[index])
+  //     return index
+  //   })
+  // })
 
   return (
     <FList
       ref={listRef}
-      height={height - 100}
+      height={height - 110}
       itemCount={issues.length}
       itemSize={40}
       width={width}

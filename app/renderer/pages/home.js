@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment, useRef, forwardRef } from 'react'
 import Head from 'next/head'
-import { socket } from './socket'
+import { socket } from '../lib/socket'
 import { ipcRenderer } from 'electron'
 import useEventListener from '@use-it/event-listener'
 import { createClient } from '@supabase/supabase-js'
@@ -18,6 +18,7 @@ import { useSnap } from 'utils/useSnap'
 import { animated } from 'react-spring'
 
 const log = console.log
+const str = data => JSON.stringify(data, null, 2)
 const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
 const supabaseKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
@@ -32,6 +33,10 @@ try {
 } catch (e) {
   alert(str(e))
 }
+//store.delete('user')
+console.log(store.get('user'))
+
+//store.delete('user')
 
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
   // return JSON.parse(
@@ -402,8 +407,7 @@ const logIssue = async ({ id, duration }) => {
 
 const getStateWithLoggedIssues = async () => {
   let syncBootstrapData
-  const user = store.get('user')
-  const { accessToken } = user
+  const { accessToken } = store.get('user')
   try {
     syncBootstrapData = await fetchSyncBootstrapDataFromServer({
       accessToken
@@ -656,6 +660,26 @@ const TickIcon = () => (
   </svg>
 )
 
+const { LinearClient } = require('@linear/sdk')
+
+const subscribe = async (client, teamId) => {
+  let response
+  try {
+    response = await client.webhookCreate({
+      enabled: true,
+      resourceTypes: ['Issue', 'Project', 'Cycle', 'IssueLabel'],
+      url: 'https://linear-webhook-websocket-server.sambarrowclough.repl.co/webhooks',
+      teamId
+    })
+  } catch (e) {
+    console.log('Something went wrong', e)
+  }
+
+  if (response) {
+    console.log('Subscribed', response)
+  }
+}
+
 export default function Home() {
   const [issues, setIssues] = useState([])
   const [viewId, setViewId] = useState(null)
@@ -664,6 +688,18 @@ export default function Home() {
   const [selectedIssue, setSelectedIssue] = useState()
   const [isReportOpen, setIsReportOpen] = useState()
   const [loading, setLoading] = useState(true)
+  const [onboardingUrl, setOnboardingUrl] = useState(null)
+  const [total, setTotal] = useState('0')
+
+  useEffect(() => {
+    let total = issues?.reduce((a, i) => {
+      if (i.duration) {
+        a += i.duration
+      }
+      return a
+    }, 0)
+    total && setTotal(juration().humanize(total))
+  }, [issues])
   // useEffect(async () => {
   //   // Dev
   //   // let { data } = JSON.parse(
@@ -673,8 +709,79 @@ export default function Home() {
   // })
 
   useEffect(() => {
+    socket.on('DONE', function (payload) {
+      console.log('CLIENT#received', payload)
+      if (payload && payload.data && payload.data.title) {
+        setState(prev => {
+          let temp = { ...prev }
+          temp.Issue.push(payload.data)
+          return temp
+        })
+
+        // Emit msg to backend to open up window
+        ipcRenderer.send('DONE', 'DONE')
+      }
+    })
+    // unsubscribe from event for preventing memory leaks
+    return () => {
+      socket.off('DONE')
+    }
+  }, [])
+
+  useEffect(() => {
     ;(async () => {
-      const data = await getStateWithLoggedIssues()
+      const user = store.get('user')
+      let data
+      if (!user) {
+        const id = uuidv4()
+        const unsubscribe = await supabase
+          .from(`users:id=eq.${id}`)
+          .on('INSERT', async payload => {
+            console.log('Change received!', payload)
+            const { new: user } = payload
+            user.awaitingWebhookSetup = true
+            store.set('user', user)
+            ipcRenderer.send('DONE', 'DONE')
+            let syncBootstrapData
+            const { accessToken } = user
+            try {
+              syncBootstrapData = await fetchSyncBootstrapDataFromServer({
+                accessToken
+              })
+              //syncBootstrapData = syncBootstrapMockData
+            } catch (e) {
+              console.error(
+                'Something went wrong getting syncBoostrap data from Linear',
+                e
+              )
+            }
+            if (!syncBootstrapData)
+              return alert('Failed to fetch data from Linear!')
+            let state = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
+            setOnboardingUrl(null)
+          })
+          .subscribe()
+
+        const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+
+        return setOnboardingUrl(url)
+      } else {
+        data = await getStateWithLoggedIssues()
+      }
+
+      if (user.awaitingWebhookSetup) {
+        const { accessToken } = user
+        const linearClient = new LinearClient({ accessToken })
+        let teams = await linearClient.teams()
+        let teamIds = teams.nodes.map(x => x.id)
+        console.log(teamIds)
+        await Promise.all(
+          teamIds.map(teamId => subscribe(linearClient, teamId))
+        )
+        user.awaitingWebhookSetup = false
+        store.set('user', user)
+      }
+
       // Remove cancelled issues
       const canceled = data.WorkflowState.map(x =>
         x.name === 'Canceled' ? x.id : null
@@ -691,6 +798,27 @@ export default function Home() {
       setIssues(state.Issue)
     }
   }, [state])
+
+  if (onboardingUrl) {
+    return (
+      <a
+        className="text-sm text-gray-600"
+        style={{
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%,-50%)'
+        }}
+        onClick={event => {
+          event.preventDefault()
+          require('electron').shell.openExternal(event.target.href)
+        }}
+        href={onboardingUrl}
+      >
+        Login with Linear
+      </a>
+    )
+  }
 
   return loading ? (
     <div
@@ -726,6 +854,11 @@ export default function Home() {
         <ReportPanel />
 
         <MainWindow />
+        <div className="flex items-center">
+          <div className="flex-1"></div>
+
+          <div className="mr-2 mt-2 text-xs text-gray-300">Total: {total}</div>
+        </div>
       </div>
 
       <TrackTimeLauncher />
@@ -734,21 +867,183 @@ export default function Home() {
 }
 
 const Header = () => {
+  const DATES = ['DAY', 'THREE_DAYS', 'WEEK', 'MONTH', 'YEAR', 'ALL']
   return (
     <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600 pt-7">
-      <Filter />
       <Issue />
-
       <div className="flex-1"></div>
-
+      <DateComponent />
       <Sort />
-
-      <Button
-        prefix={<PieChartIcon />}
-        shortcut={'R'}
-        text={'Report'}
-        onClick={_ => setIsReportOpen(p => !p)}
-      />
+      <Filter />
     </div>
+  )
+}
+
+const viewIssuesFrom = (issues, date) => {
+  if (!issues) return
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+  const lastThreeDays = new Date(startOfDay.getTime() - 3 * 24 * 60 * 60 * 1000)
+  const lastWeek = new Date(startOfDay.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const lastMonth = new Date()
+  lastMonth.setHours(0, 0, 0, 0)
+  lastMonth.setMonth(lastMonth.getMonth() - 3)
+  var lastYear = new Date(2012, 7, 25)
+  lastYear.setFullYear(lastYear.getFullYear() - 1)
+
+  switch (date) {
+    case 'DAY':
+      return issues
+        .filter(x => {
+          if (new Date(x.completedAt).getTime() > startOfDay) return x
+        })
+        .sort(byDateUpdated)
+      break
+
+    case 'THREE_DAYS':
+      return issues
+        .filter(x => {
+          if (new Date(x.completedAt).getTime() > lastThreeDays) return x
+        })
+        .sort(byDateUpdated)
+      break
+
+    case 'WEEK':
+      return issues
+        .filter(x => {
+          if (new Date(x.completedAt).getTime() > lastWeek) return x
+        })
+        .sort(byDateUpdated)
+      break
+
+    case 'MONTH':
+      return issues
+        .filter(x => {
+          if (new Date(x.completedAt).getTime() > lastMonth) return x
+        })
+        .sort(byDateUpdated)
+      break
+
+    case 'YEAR':
+      return issues
+        .filter(x => {
+          if (new Date(x.completedAt).getTime() > lastYear) return x
+        })
+        .sort(byDateUpdated)
+      break
+
+    case 'ALL':
+      return issues.sort(byDateUpdate)
+      break
+  }
+}
+
+const DateComponent = () => {
+  const { setIssues, state: appState } = useAppContext()
+  const [state, setState] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [dateText, setDateText] = useState('Date')
+  useHotkeys('d', () => setOpen(p => !p))
+  const snap = useSnap(open)
+  return (
+    <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+      <DropdownMenu.Trigger className="mx-2">
+        <Button shortcut={'D'} text={dateText}></Button>
+      </DropdownMenu.Trigger>
+      {snap(
+        (styles, item) =>
+          item && (
+            <animated.div style={{ ...styles }}>
+              <StyledContent
+                style={{ ...styles }}
+                onCloseAutoFocus={e => e.preventDefault()}
+                onEscapeKeyDown={() => {
+                  setOpen(false)
+                }}
+                align="start"
+                className="text-gray-700"
+              >
+                <DropdownMenu.RadioGroup value={state} onValueChange={setState}>
+                  <StyledRadioItem
+                    onSelect={_ => {
+                      const latest = viewIssuesFrom(appState.Issue, 'DAY')
+                      setIssues(latest)
+                      setDateText('Today')
+                    }}
+                    key={0}
+                    value={0}
+                  >
+                    Today
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+
+                  <StyledRadioItem
+                    onSelect={() => {
+                      const latest = viewIssuesFrom(appState.Issue, 'WEEK')
+                      if (latest) setIssues(latest)
+                      setDateText('Week')
+                    }}
+                    key={1}
+                    value={1}
+                  >
+                    Last week
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+
+                  <StyledRadioItem
+                    onSelect={() => {
+                      const latest = viewIssuesFrom(appState.Issue, 'MONTH')
+                      setIssues(latest)
+                      setDateText('Month')
+                    }}
+                    key={2}
+                    value={2}
+                  >
+                    Last month
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+
+                  <StyledRadioItem
+                    onSelect={() => {
+                      const latest = viewIssuesFrom(appState.Issue, 'YEAR')
+                      setIssues(latest)
+                      setDateText('Year')
+                    }}
+                    key={3}
+                    value={3}
+                  >
+                    Last year
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+
+                  <StyledRadioItem
+                    onSelect={() => {
+                      const latest = viewIssuesFrom(appState.Issue, 'ALL')
+                      setIssues(latest)
+                      setDateText('Date')
+                    }}
+                    key={4}
+                    value={4}
+                  >
+                    View all issues
+                    <DropdownMenu.ItemIndicator>
+                      <TickIcon />
+                    </DropdownMenu.ItemIndicator>
+                  </StyledRadioItem>
+                </DropdownMenu.RadioGroup>
+                <StyledArrow />
+              </StyledContent>
+            </animated.div>
+          )
+      )}
+    </DropdownMenu.Root>
   )
 }

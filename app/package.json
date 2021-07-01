@@ -7,7 +7,7 @@
   "main": "app/background.js",
   "scripts": {
     "dev": "nextron -p 4000",
-    "build": "nextron build",
+    "build": "nextron build --mac --x64",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -41,7 +41,8 @@
     "react-spring": "^9.2.1",
     "react-window": "^1.8.6",
     "socket.io-client": "^4.1.1",
-    "use-descendants": "^0.0.2"
+    "use-descendants": "^0.0.2",
+    "@linear/sdk": "^1.15.0"
   },
   "devDependencies": {
     "@types/node": "^14.14.20",

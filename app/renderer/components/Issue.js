@@ -44,7 +44,7 @@ export const PopoverMenuTrigger = ({ shortcut, children }) => {
 export default function Issue() {
   const { state, setIssues, setViewId } = useAppContext()
   const [open, setOpen] = React.useState(false)
-  const [triggerText, setTriggerText] = useState('Team')
+  const [triggerText, setTriggerText] = useState('Issues')
 
   // const [heightRef, height] = useHeight()
   // const slideInStyles = useSpring({
@@ -54,14 +54,12 @@ export default function Issue() {
   //     height: height === 0 ? 200 : height
   //   }
   // })
-  useHotkeys('t', () => {
+  useHotkeys('i', () => {
     setTimeout(() => setOpen(p => !p))
   })
 
   const handelSelect = ({ id, name }) => {
-    setIssues(() =>
-      state.Issue.filter(issue => issue.teamId === id).sort(byDateUpdated)
-    )
+    setIssues(p => p.filter(issue => issue.teamId === id).sort(byDateUpdated))
     setViewId(id)
     setOpen(false)
     setTriggerText(name)
@@ -71,12 +69,12 @@ export default function Issue() {
     <PopoverMenuContext.Provider value={{ open }}>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger>
-          <Button shortcut={'T'} text={triggerText}></Button>
+          <Button shortcut={'I'} text={triggerText}></Button>
         </Popover.Trigger>
         <PopoverMenuContent>
           <PopoverMenuInput
             placeholder={'View issues from...'}
-            shortcut={'T'}
+            shortcut={'I'}
           />
           <PopoverMenuSeparator />
           <PopoverMenuList>
@@ -92,10 +90,10 @@ export default function Issue() {
               {state?.Project?.map(({ id, name }) => (
                 <PopoverMenuItem
                   callback={_ => {
-                    setIssues(() =>
-                      state.Issue.filter(issue => issue.projectId === id)
+                    setIssues(p =>
+                      p
+                        .filter(issue => issue.projectId === id)
                         .sort(byDateUpdated)
-                        .reverse()
                     )
                     setViewId(id)
                     setOpen(false)
