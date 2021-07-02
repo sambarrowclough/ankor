@@ -1,6 +1,7 @@
 import { app, Tray, screen, ipcMain, autoUpdater } from 'electron'
 import serve from 'electron-serve'
 import { createWindow } from './helpers'
+const nativeImage = require('electron').nativeImage
 
 // const server = 'https://hazel-sambarrowclough1.vercel.app'
 // const feed = `${server}/update/${process.platform}/${app.getVersion()}`
@@ -26,17 +27,23 @@ ipcMain.on('DONE', (event, arg) => {
 ;(async () => {
   await app.whenReady()
 
+  // Can't figure out path of icon in production
+  // so we use the data url instead
+  const dataURL =
+    'data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAABUAAAASCAYAAAC0EpUuAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAADYSURBVHgB3ZTBEYIwEEUX9G5KSAmWQAmWYAfqzZspASsAK6AES9AO0AqCN2+6GX/UySRBws0/8w7sZz8LCcnIrwWzorjOzMZn5IEGwRTAlUQ9owQ1TOup14yONeYR7xbxOkoMTdZ/hM4CdfM9BRikHfNgSo9XwKsoIbCO3KOGBMcC7Q+xBqdfgm2gRrNEXcLT8H1UfYGhxiMeJpypG1/w8uuV3QYFv2+llRtsJmhpvEoEC7NP7b4bq/e+njJ7ep2fZtoLpckMNUdWN0HQlT6rnaI7c2C25uIJn69A++DBpPIAAAAASUVORK5CYII='
+  const icon = nativeImage.createFromDataURL(dataURL)
+  appTry = new Tray(icon)
+  //appTry = new Tray(__dirname + '/../resources/icon.png')
   //if (app.dock) app.dock.hide()
-  // appTry = new Tray(__dirname + '/IconTemplate.png')
-  // appTry.setToolTip('Youtube Music Player')
-  // appTry.on('click', clicked)
+  appTry.setToolTip('ankor')
+  appTry.on('click', clicked)
 
   mainWindow = createWindow('main', {
-    width: 1000,
-    height: 600
+    width: 450,
+    height: 600,
+    show: false,
+    resizable: false
   })
-
-  //app.dock.hide()
 
   if (isProd) {
     await mainWindow.loadURL('app://./home.html')

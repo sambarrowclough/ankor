@@ -73,6 +73,8 @@ export default (
   const browserOptions: BrowserWindowConstructorOptions = {
     ...options,
     ...state,
+    width: options.width,
+    height: options.height,
     titleBarStyle: 'hidden',
     webPreferences: {
       nodeIntegration: true,
