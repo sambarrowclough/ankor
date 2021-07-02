@@ -1,5 +1,5 @@
-appId: com.example.nextron
-productName: My Nextron App
+appId: com.example.ankor
+productName: ankor
 copyright: Copyright © 2018 Yoshihide Shiono
 directories:
   output: dist
@@ -10,3 +10,9 @@ files:
       - package.json
       - app
 publish: null
+afterSign: scripts/notarize.js
+mac:
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist

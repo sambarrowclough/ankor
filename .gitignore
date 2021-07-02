@@ -5,6 +5,8 @@
 /.pnp
 .pnp.js
 .apps
+/app/dist
+/app/.env
 
 /web/headlessui
 

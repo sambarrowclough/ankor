@@ -6,6 +6,8 @@ import { createWindow } from './helpers'
 // const feed = `${server}/update/${process.platform}/${app.getVersion()}`
 // autoUpdater.setFeedURL(feed)
 
+console.log(app.getPath('userData'))
+
 let bounds: any
 let cachedBounds: any
 let mainWindow: Electron.BrowserWindow
@@ -27,7 +29,7 @@ ipcMain.on('DONE', (event, arg) => {
 
   if (app.dock) app.dock.hide()
   console.log(__dirname)
-  appTry = new Tray(__dirname + '/../icon.png')
+  appTry = new Tray(__dirname + '/../tray.png')
   appTry.setToolTip('ankor')
   appTry.on('click', clicked)
 
