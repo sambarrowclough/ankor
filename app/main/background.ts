@@ -3,9 +3,29 @@ import serve from 'electron-serve'
 import { createWindow } from './helpers'
 const nativeImage = require('electron').nativeImage
 
-// const server = 'https://hazel-sambarrowclough1.vercel.app'
-// const feed = `${server}/update/${process.platform}/${app.getVersion()}`
-// autoUpdater.setFeedURL(feed)
+import { autoUpdater as updater } from 'electron-updater'
+const log = require('electron-log')
+log.transports.file.level = 'debug'
+updater.logger = log
+updater.checkForUpdatesAndNotify()
+
+// const server = 'https://hazel3.vercel.app'
+// const feed = `${server}/update/${
+//   process.platform
+// }/${app.getVersion()}` as string
+
+// console.log(feed)
+
+// try {
+//   autoUpdater.setFeedURL({ url: feed })
+// } catch (e) {
+//   console.log('Something went wrong setting feed URL', e)
+// }
+
+// autoUpdater.on('error', message => {
+//   console.error('There was a problem updating the application')
+//   console.error(message)
+// })
 
 let bounds: any
 let cachedBounds: any
@@ -39,10 +59,10 @@ ipcMain.on('DONE', (event, arg) => {
   appTry.on('click', clicked)
 
   mainWindow = createWindow('main', {
-    width: 450,
-    height: 600,
-    show: false,
-    resizable: false
+    /* width: 450, */
+    /* height: 600, */
+    //show: false
+    /* resizable: false */
   })
 
   if (isProd) {
