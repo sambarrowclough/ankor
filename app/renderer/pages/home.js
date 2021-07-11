@@ -34,9 +34,7 @@ try {
   alert(str(e))
 }
 //store.delete('user')
-console.log(store.get('user'))
-
-//store.delete('user')
+console.log('USER', str(store.get('user')))
 
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
   // return JSON.parse(
@@ -405,9 +403,11 @@ const logIssue = async ({ id, duration }) => {
 //   )
 // }
 
-const getStateWithLoggedIssues = async () => {
+const getStateWithLoggedIssues = async (accessToken = null) => {
   let syncBootstrapData
-  const { accessToken } = store.get('user')
+  if (!accessToken) {
+    accessToken = store.get('user').accessToken
+  }
   try {
     syncBootstrapData = await fetchSyncBootstrapDataFromServer({
       accessToken
@@ -728,49 +728,20 @@ export default function Home() {
     }
   }, [])
 
-  useEffect(() => {
-    ;(async () => {
-      const user = store.get('user')
-      let data
-      if (!user) {
-        const id = uuidv4()
-        const unsubscribe = await supabase
-          .from(`users:id=eq.${id}`)
-          .on('INSERT', async payload => {
-            console.log('Change received!', payload)
-            const { new: user } = payload
-            user.awaitingWebhookSetup = true
-            store.set('user', user)
-            ipcRenderer.send('DONE', 'DONE')
-            let syncBootstrapData
-            const { accessToken } = user
-            try {
-              syncBootstrapData = await fetchSyncBootstrapDataFromServer({
-                accessToken
-              })
-              //syncBootstrapData = syncBootstrapMockData
-            } catch (e) {
-              console.error(
-                'Something went wrong getting syncBoostrap data from Linear',
-                e
-              )
-            }
-            if (!syncBootstrapData)
-              return alert('Failed to fetch data from Linear!')
-            let state = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
-            setOnboardingUrl(null)
-          })
-          .subscribe()
-
-        const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
-
-        return setOnboardingUrl(url)
-      } else {
-        data = await getStateWithLoggedIssues()
-      }
-
-      if (user.awaitingWebhookSetup) {
+  useEffect(async () => {
+    const user = store.get('user')
+    if (user) return
+    const id = uuidv4()
+    const unsubscribe = await supabase
+      .from(`users:id=eq.${id}`)
+      .on('INSERT', async payload => {
+        console.log('Change received!', payload)
+        const { new: user } = payload
+        ipcRenderer.send('DONE', 'DONE')
+        console.log('USER', str(user))
         const { accessToken } = user
+        let data = await getStateWithLoggedIssues(accessToken)
+
         const linearClient = new LinearClient({ accessToken })
         let teams = await linearClient.teams()
         let teamIds = teams.nodes.map(x => x.id)
@@ -780,16 +751,50 @@ export default function Home() {
         )
         user.awaitingWebhookSetup = false
         store.set('user', user)
-      }
+        setOnboardingUrl(null)
+        const canceled = data.WorkflowState.map(x =>
+          x.name === 'Canceled' ? x.id : null
+        ).filter(Boolean)
+        const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
+        data.Issue = issues
+        setState(data)
+        setLoading(false)
+      })
+      .subscribe()
 
-      // Remove cancelled issues
-      const canceled = data.WorkflowState.map(x =>
-        x.name === 'Canceled' ? x.id : null
-      ).filter(Boolean)
-      const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
-      data.Issue = issues
-      setState(data)
-      setLoading(false)
+    const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+
+    setOnboardingUrl(url)
+  }, [])
+
+  useEffect(() => {
+    ;(async () => {
+      const user = store.get('user')
+      if (user) {
+        let data = await getStateWithLoggedIssues()
+
+        if (user?.awaitingWebhookSetup) {
+          const { accessToken } = user
+          const linearClient = new LinearClient({ accessToken })
+          let teams = await linearClient.teams()
+          let teamIds = teams.nodes.map(x => x.id)
+          console.log(teamIds)
+          await Promise.all(
+            teamIds.map(teamId => subscribe(linearClient, teamId))
+          )
+          user.awaitingWebhookSetup = false
+          store.set('user', user)
+        }
+
+        // Remove cancelled issues
+        const canceled = data.WorkflowState.map(x =>
+          x.name === 'Canceled' ? x.id : null
+        ).filter(Boolean)
+        const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
+        data.Issue = issues
+        setState(data)
+        setLoading(false)
+      }
     })()
   }, [])
 
@@ -810,6 +815,8 @@ export default function Home() {
           transform: 'translate(-50%,-50%)'
         }}
         onClick={event => {
+          setLoading(true)
+          setOnboardingUrl(null)
           event.preventDefault()
           require('electron').shell.openExternal(event.target.href)
         }}
