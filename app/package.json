@@ -2,7 +2,7 @@
   "private": true,
   "name": "ankor",
   "description": "Time tracking for Linear",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "author": "Sam Barrowclough <sam@vasai.app>",
   "main": "app/background.js",
   "repository": {
@@ -11,7 +11,8 @@
   },
   "scripts": {
     "dev": "nextron -p 4000",
-    "build": "nextron build --mac --x64 -p always",
+    "build": "nextron build -p always",
+    "build:mac": "nextron build --mac --x64 -p always",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
