@@ -406,46 +406,46 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-		;(async () =>{
-			const user = store.get('user')
-			// if (user) return () => {console.log(1)}
-			if (!user) {
-				const id = uuidv4()
-				const unsubscribe = await supabase
-					.from(`users:id=eq.${id}`)
-					.on('INSERT', async payload => {
-						console.log('Change received!', payload)
-						const { new: user } = payload
-						ipcRenderer.send('DONE', 'DONE')
-						console.log('USER', str(user))
-						const { accessToken } = user
-						let data = await getStateWithLoggedIssues(accessToken)
+    ;(async () => {
+      const user = store.get('user')
+      // if (user) return () => {console.log(1)}
+      if (!user) {
+        const id = uuidv4()
+        const unsubscribe = await supabase
+          .from(`users:id=eq.${id}`)
+          .on('INSERT', async payload => {
+            console.log('Change received!', payload)
+            const { new: user } = payload
+            ipcRenderer.send('DONE', 'DONE')
+            console.log('USER', str(user))
+            const { accessToken } = user
+            let data = await getStateWithLoggedIssues(accessToken)
 
-						const linearClient = new LinearClient({ accessToken })
-						let teams = await linearClient.teams()
-						let teamIds = teams.nodes.map(x => x.id)
-						console.log(teamIds)
-						await Promise.all(
-							teamIds.map(teamId => subscribe(linearClient, teamId))
-						)
-						user.awaitingWebhookSetup = false
-						store.set('user', user)
-						setOnboardingUrl(null)
-						const canceled = data.WorkflowState.map(x =>
-							x.name === 'Canceled' ? x.id : null
-						).filter(Boolean)
-						const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
-						data.Issue = issues
-						setState(data)
-						setLoading(false)
-					})
-					.subscribe()
+            const linearClient = new LinearClient({ accessToken })
+            let teams = await linearClient.teams()
+            let teamIds = teams.nodes.map(x => x.id)
+            console.log(teamIds)
+            await Promise.all(
+              teamIds.map(teamId => subscribe(linearClient, teamId))
+            )
+            user.awaitingWebhookSetup = false
+            store.set('user', user)
+            setOnboardingUrl(null)
+            const canceled = data.WorkflowState.map(x =>
+              x.name === 'Canceled' ? x.id : null
+            ).filter(Boolean)
+            const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
+            data.Issue = issues
+            setState(data)
+            setLoading(false)
+          })
+          .subscribe()
 
-				const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+        const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
 
-				setOnboardingUrl(url)
-			}
-		})();
+        setOnboardingUrl(url)
+      }
+    })()
   }, [])
 
   useEffect(() => {
@@ -547,45 +547,60 @@ export default function Home() {
             onClick={async () => {
               store.delete('user')
 
-				const id = uuidv4()
-				const unsubscribe = await supabase
-					.from(`users:id=eq.${id}`)
-					.on('INSERT', async payload => {
-						console.log('Change received!', payload)
-						const { new: user } = payload
-						ipcRenderer.send('DONE', 'DONE')
-						console.log('USER', str(user))
-						const { accessToken } = user
-						let data = await getStateWithLoggedIssues(accessToken)
+              const id = uuidv4()
+              const unsubscribe = await supabase
+                .from(`users:id=eq.${id}`)
+                .on('INSERT', async payload => {
+                  console.log('Change received!', payload)
+                  const { new: user } = payload
+                  ipcRenderer.send('DONE', 'DONE')
+                  console.log('USER', str(user))
+                  const { accessToken } = user
+                  let data = await getStateWithLoggedIssues(accessToken)
 
-						const linearClient = new LinearClient({ accessToken })
-						let teams = await linearClient.teams()
-						let teamIds = teams.nodes.map(x => x.id)
-						console.log(teamIds)
-						await Promise.all(
-							teamIds.map(teamId => subscribe(linearClient, teamId))
-						)
-						user.awaitingWebhookSetup = false
-						store.set('user', user)
-						setOnboardingUrl(null)
-						const canceled = data.WorkflowState.map(x =>
-							x.name === 'Canceled' ? x.id : null
-						).filter(Boolean)
-						const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
-						data.Issue = issues
-						setState(data)
-						setLoading(false)
-					})
-					.subscribe()
+                  const linearClient = new LinearClient({ accessToken })
+                  let teams = await linearClient.teams()
+                  let teamIds = teams.nodes.map(x => x.id)
+                  console.log(teamIds)
+                  await Promise.all(
+                    teamIds.map(teamId => subscribe(linearClient, teamId))
+                  )
+                  user.awaitingWebhookSetup = false
+                  store.set('user', user)
+                  setOnboardingUrl(null)
+                  const canceled = data.WorkflowState.map(x =>
+                    x.name === 'Canceled' ? x.id : null
+                  ).filter(Boolean)
+                  const issues = data.Issue.filter(
+                    x => !canceled.includes(x.stateId)
+                  )
+                  data.Issue = issues
+                  setState(data)
+                  setLoading(false)
+                })
+                .subscribe()
 
-				const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+              const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
 
-				setOnboardingUrl(url)
+              setOnboardingUrl(url)
               //setState(null)
             }}
             className="flex items-center ml-6 mt-2 text-xs text-gray-400"
           >
-		<svg className="mr-1 w-3.5 h-3.5 " viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17 16L21 12M21 12L17 8M21 12L7 12M13 16V17C13 18.6569 11.6569 20 10 20H6C4.34315 20 3 18.6569 3 17V7C3 5.34315 4.34315 4 6 4H10C11.6569 4 13 5.34315 13 7V8" stroke="#374151" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg
+              className="mr-1 w-3.5 h-3.5 "
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M17 16L21 12M21 12L17 8M21 12L7 12M13 16V17C13 18.6569 11.6569 20 10 20H6C4.34315 20 3 18.6569 3 17V7C3 5.34315 4.34315 4 6 4H10C11.6569 4 13 5.34315 13 7V8"
+                stroke="#374151"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
             Logout
           </button>
           <div className="flex-1"></div>
