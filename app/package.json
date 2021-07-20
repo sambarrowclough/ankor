@@ -2,7 +2,7 @@
   "private": true,
   "name": "ankor",
   "description": "Time tracking for Linear",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "author": "Sam Barrowclough <sam@vasai.app>",
   "main": "app/background.js",
   "repository": {

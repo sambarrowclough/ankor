@@ -1,4 +1,3 @@
-import { useAppContext, AppContext } from 'utils/useApp'
 import React, {
   useState,
   useEffect,
@@ -10,10 +9,13 @@ import React, {
 } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { FixedSizeList as FList, areEqual } from 'react-window'
+
+import { useAppContext, AppContext } from 'utils/useApp'
 import { juration } from 'utils/helpers'
+import { Stopwatch } from 'components'
 
 export const MainWindow = ({}) => {
-  const { issues, setShowTimeTrackerLauncher, setSelectedIssue } =
+  const { issues, setIssues, setShowTimeTrackerLauncher, setSelectedIssue } =
     useAppContext()
   const [hoveredRowIndex, setHoveredRowIndex] = useState(0)
   const [selectedRowIndex, setSelectedRowIndex] = useState(0)
@@ -53,14 +55,8 @@ export const MainWindow = ({}) => {
 
   useHotkeys('up', _ => setPrev())
   useHotkeys('down', _ => setNext())
-  // useHotkeys('space', _ => {
-  //   setShowTimeTrackerLauncher(true)
-  //   setHoveredRowIndex(index => {
-  //     setSelectedIssue(issues[index])
-  //     return index
-  //   })
-  // })
-
+  // const { seconds, minutes, hours, days, isRunning, start, pause, reset } =
+  //   useStopwatch({ autoStart: false })
   return (
     <FList
       ref={listRef}
@@ -71,7 +67,7 @@ export const MainWindow = ({}) => {
     >
       {({ index, style }) => {
         const item = issues[index]
-        const { title, duration } = item
+        const { title, duration, isRunning, startTime, id } = item
         const isHovered = hoveredRowIndex === index
         const isSelected = selectedRowIndex === index
         return (
@@ -119,10 +115,11 @@ export const MainWindow = ({}) => {
             </div>
             <div className="flex-1"></div>
             {duration != undefined && (
-              <div className="text-xs text-gray-300">
+              <div className="text-xs text-gray-300 mr-2">
                 {juration().humanize(duration)}
               </div>
             )}
+            <Stopwatch id={id} startTime={startTime} isRunning={isRunning} />
           </div>
         )
       }}

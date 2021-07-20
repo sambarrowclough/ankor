@@ -1,3 +1,20 @@
+export const logIssue = async ({ id, duration }) => {
+  try {
+    const opts = {
+      body: JSON.stringify({ duration, id }),
+      method: 'POST',
+      headers: { 'content-type': 'application/json' }
+    }
+    return await fetch(
+      'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
+      opts
+    )
+  } catch (e) {
+    console.log('Something went wrong', e)
+  }
+}
+logIssue.displayName = 'logIssue'
+
 export const byCompleted = (a, b) => {
   return a.completedAt < b.completedAt
     ? -1
@@ -5,7 +22,6 @@ export const byCompleted = (a, b) => {
     ? 1
     : 0
 }
-
 byCompleted.displayName = 'byCompleted'
 
 // Find the type of an object from its id
@@ -21,7 +37,6 @@ export const findType = (id, state) => {
   })
   return type
 }
-
 findType.displayName = 'findType'
 
 /*

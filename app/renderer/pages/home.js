@@ -1,6 +1,5 @@
 import React, { useState, useEffect, Fragment, useRef, forwardRef } from 'react'
 import Head from 'next/head'
-import { socket } from '../lib/socket'
 import { ipcRenderer } from 'electron'
 import useEventListener from '@use-it/event-listener'
 import { createClient } from '@supabase/supabase-js'
@@ -9,13 +8,15 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { styled } from '@stitches/react'
 import { GlobalHotKeys, configure } from 'react-hotkeys'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { animated } from 'react-spring'
+
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
-import { juration, uuidv4 } from 'utils/helpers'
+import { juration, uuidv4, logIssue } from 'utils/helpers'
 import { useAppContext, AppContext } from 'utils/useApp'
 import { MainWindow, Button } from 'components'
+import { socket } from '../lib/socket'
 import { useSnap } from 'utils/useSnap'
-import { animated } from 'react-spring'
 
 const log = console.log
 const str = data => JSON.stringify(data, null, 2)
@@ -59,22 +60,6 @@ const getLoggedIssues = async () => {
       'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
       opts
     ).then(r => r.json())
-  } catch (e) {
-    console.log('Something went wrong', e)
-  }
-}
-
-const logIssue = async ({ id, duration }) => {
-  try {
-    const opts = {
-      body: JSON.stringify({ duration, id }),
-      method: 'POST',
-      headers: { 'content-type': 'application/json' }
-    }
-    return await fetch(
-      'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
-      opts
-    )
   } catch (e) {
     console.log('Something went wrong', e)
   }

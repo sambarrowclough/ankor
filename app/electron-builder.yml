@@ -18,5 +18,12 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   publish:
     - github
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+        - arm64
 dmg:
   sign: false
