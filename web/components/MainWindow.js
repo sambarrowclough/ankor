@@ -27,7 +27,7 @@ export const MainWindow = ({}) => {
   useLayoutEffect(() => {
     if (window) {
       setHeight(window.innerHeight)
-      setWidth(window.innerWidth)
+      setWidth(window.innerWidth - 220)
     }
   }, [])
   useEffect(() => {

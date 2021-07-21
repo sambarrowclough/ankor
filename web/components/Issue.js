@@ -43,7 +43,7 @@ export const PopoverMenuTrigger = ({ shortcut, children }) => {
   )
 }
 export default function Issue() {
-  const { state, setIssues, setViewId } = useAppContext()
+  const { state, setIssues, setViewId, setActive } = useAppContext()
   const [open, setOpen] = React.useState(false)
   const [triggerText, setTriggerText] = useState('Issues')
 
@@ -60,7 +60,10 @@ export default function Issue() {
   })
 
   const handelSelect = ({ id, name }) => {
-    setIssues(p => p.filter(issue => issue.teamId === id).sort(byDateUpdated))
+    setActive(false)
+    setIssues(p =>
+      state.Issue.filter(issue => issue.teamId === id).sort(byDateUpdated)
+    )
     setViewId(id)
     setOpen(false)
     setTriggerText(name)
