@@ -1,21 +1,26 @@
-import React, { useState, useEffect, Fragment, useRef, forwardRef } from 'react'
-import Head from 'next/head'
-import useEventListener from '@use-it/event-listener'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import * as _ from 'lodash'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { styled } from '@stitches/react'
-import { GlobalHotKeys, configure } from 'react-hotkeys'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { animated } from 'react-spring'
+import {
+  PDFDownloadLink,
+  Text,
+  Document,
+  Page,
+  StyleSheet,
+  View
+} from '@react-pdf/renderer'
 
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
 import { juration, uuidv4, logIssue } from '../utils/helpers'
 import { useAppContext, AppContext } from '../utils/useApp'
-import { MainWindow, Button } from '../components'
+import { MainWindow, Button, DayPicker } from '../components'
 import { socket } from '../lib/socket'
-import { useSnap } from '../utils/useSnap'
+import { useSnap, formatDate } from '../utils/useSnap'
 
 const log = console.log
 const str = data => JSON.stringify(data, null, 2)
@@ -33,8 +38,6 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 //   // id: 'ca374563-1543-4731-9bfb-aa38f6ce5dad',
 //   // awaitingWebhookSetup: false
 // }
-
-configure({ logLevel: 'info', ignoreTags: ['input', 'select', 'textarea'] })
 
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
   // return JSON.parse(
@@ -190,18 +193,6 @@ const Sort = () => {
   )
 }
 
-const PieChartIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    class="h-3.5 w-3.5"
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
-    <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
-  </svg>
-)
-
 const TrackTimeLauncher = ({}) => {
   const {
     inputRef,
@@ -278,34 +269,6 @@ const TrackTimeLauncher = ({}) => {
   )
 }
 
-const ReportPanel = ({}) => {
-  const [total, setTotal] = useState('0')
-  const { isReportOpen, setIsReportOpen, issues } = useAppContext()
-  useEffect(() => {
-    let total = issues?.reduce((a, i) => {
-      if (i.duration) {
-        a += i.duration
-      }
-      return a
-    }, 0)
-    total && setTotal(juration().humanize(total))
-  }, [issues])
-
-  useHotkeys('r', ({}) => {
-    setIsReportOpen(p => !p)
-  })
-  return (
-    <div>
-      {isReportOpen && (
-        <div className="z-50 absolute top-0 left-20 bottom-0 right-0 bg-gray-100 p-7 text-sm text-gray-500">
-          <span className="mr-7">Total</span>
-          <span>{total}</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 const TickIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -359,7 +322,7 @@ export default function Home() {
       }
       return a
     }, 0)
-    total && setTotal(juration().humanize(total))
+    setTotal(juration().humanize(total))
   }, [issues])
   // useEffect(async () => {
   //   // Dev
@@ -426,6 +389,7 @@ export default function Home() {
 
         const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
 
+        window.open(url)
         setOnboardingUrl(url)
       }
     })()
@@ -501,7 +465,10 @@ export default function Home() {
   }
 
   const [active, setActive] = useState(false)
-
+  const range = useRef({
+    from: undefined,
+    to: undefined
+  })
   return loading ? (
     <div
       className="text-sm text-gray-600"
@@ -517,6 +484,8 @@ export default function Home() {
   ) : (
     <AppContext.Provider
       value={{
+        total,
+        range,
         setActive,
         issues,
         setIssues,
@@ -585,8 +554,6 @@ export default function Home() {
           <Header />
 
           <div className="relative">
-            <ReportPanel />
-
             <MainWindow />
             <div className="border-t-2 border-gray-50 flex items-center">
               <div className="flex-1"></div>
@@ -666,16 +633,200 @@ const Logout = () => {
   )
 }
 
+export const styles = StyleSheet.create({
+  body: {
+    padding: 10
+  },
+  table: {
+    display: 'table',
+    width: 'auto'
+  },
+  tableRow: {
+    margin: 'auto',
+    flexDirection: 'row'
+  },
+  tableColHeader: {
+    width: '16.6%',
+    borderStyle: 'solid',
+    color: '#999',
+    fontSize: 10,
+    fontWeight: 400
+  },
+  tableCol: {
+    width: '16.6%',
+    borderStyle: 'solid',
+    borderColor: '#eee',
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    paddingBottom: 6,
+    paddingTop: 6,
+    color: '#222'
+  },
+  tableCellHeader: {
+    margin: 'auto',
+    margin: 5,
+    fontSize: 12,
+    fontWeight: 500
+  },
+  tableCell: {
+    margin: 'auto',
+    margin: 5,
+    fontSize: 10
+  },
+  date: {
+    fontSize: '14px',
+    marginBottom: '30px',
+    marginLeft: '5px',
+    color: '#666'
+  },
+  total: {
+    fontSize: '14px',
+    marginBottom: '10px',
+    marginLeft: '5px',
+    color: '#666'
+  }
+})
+
+export const Report = ({ from, to, issues, state, total }) => {
+  return (
+    <Document>
+      <Page style={styles.body}>
+        <View>
+          <Text style={styles.total}>Total: {total}</Text>
+        </View>
+        <View>
+          <Text style={styles.date}>
+            {from} - {to}
+          </Text>
+        </View>
+        <View style={styles.table}>
+          <View style={styles.tableRow}>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Date</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Issue</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Project</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Cycle</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Assignee</Text>
+            </View>
+            <View style={styles.tableColHeader}>
+              <Text style={styles.tableCellHeader}>Duration</Text>
+            </View>
+          </View>
+
+          {issues &&
+            issues.map((issue, index) => {
+              return (
+                <View style={styles.tableRow}>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>
+                      {new Date(issue.createdAt).toDateString()}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>{issue.title}</Text>
+                  </View>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>
+                      {state.Project.find(x => x.id === issue.projectId)?.name}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>
+                      {state.Cycle.find(x => x.id === issue.cycleId)?.number}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>
+                      {state.User.find(x => x.id === issue.assigneeId)?.name}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCol}>
+                    <Text style={styles.tableCell}>
+                      {issue.duration && juration().humanize(issue.duration)}
+                    </Text>
+                  </View>
+                </View>
+              )
+            })}
+        </View>
+      </Page>
+    </Document>
+  )
+}
+
+const DownloadReport = () => {
+  const { range, issues, state, total } = useAppContext()
+  const [isClient, setIsClient] = useState(false)
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+  // if (range.current.from) {
+  //   let date = range.current.from.toISOString().split('T')[0]
+  //   //console.log(date)
+  // }
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  useEffect(() => {
+    if (range.current.from) {
+      let from = range.current.from.toISOString().split('T')[0]
+      setFrom(from)
+    }
+    if (range.current.to) {
+      let to = range.current.to.toISOString().split('T')[0]
+      setTo(to)
+    }
+  }, [range.current])
+  return ''
+  return (
+    <div>
+      {isClient && (
+        <PDFDownloadLink
+          document={
+            <Report
+              issues={issues}
+              from={from}
+              to={to}
+              state={state}
+              total={total}
+            />
+          }
+          fileName="Report.pdf"
+        >
+          {({ blob, url, loading, error }) =>
+            loading ? 'Loading document...' : 'Download my resume'
+          }
+        </PDFDownloadLink>
+      )}
+    </div>
+  )
+}
+
 const Header = () => {
-  const { setIssues } = useAppContext()
+  // const { range } = useAppContext()
+  // if (range.current.from) {
+  //   let date = range.current.from.toISOString().split('T')[0]
+  //   console.log(date)
+  // }
+
   return (
     <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600 pt-7">
       <Issue />
       <div className="flex-1"></div>
-      <DateComponent />
-
+      {/* <DateComponent /> */}
+      <DayPicker />
       <Sort />
       <Filter />
+      <DownloadReport />
     </div>
   )
 }

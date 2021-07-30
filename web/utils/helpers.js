@@ -15,6 +15,19 @@ export const logIssue = async ({ id, duration }) => {
 }
 logIssue.displayName = 'logIssue'
 
+// YYYY-MM-DD -> "2021-07-30"
+export function formatDate(date) {
+  var d = new Date(date),
+    month = '' + (d.getMonth() + 1),
+    day = '' + d.getDate(),
+    year = d.getFullYear()
+
+  if (month.length < 2) month = '0' + month
+  if (day.length < 2) day = '0' + day
+
+  return [year, month, day].join('-')
+}
+
 export const byCompleted = (a, b) => {
   return a.completedAt < b.completedAt
     ? -1
