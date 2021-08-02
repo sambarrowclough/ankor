@@ -22,15 +22,6 @@ const supabaseKey =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// const user = {
-//   // accessToken:
-//   //   'lin_oauth_53ecb93b8bbee57463dd5b581dc962aae6c3f5bd69696b423108fa99ba0cc785',
-//   // createdAt: '2021-07-20T13:35:54.368048Z',
-//   // email: 'myemail@gmail.com',
-//   // id: 'ca374563-1543-4731-9bfb-aa38f6ce5dad',
-//   // awaitingWebhookSetup: false
-// }
-
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
   // return JSON.parse(
   //   require('fs').readFileSync('../sync-bootstrap.json').toString()
