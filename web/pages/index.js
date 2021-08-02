@@ -5,14 +5,6 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import { styled } from '@stitches/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { animated } from 'react-spring'
-import {
-  PDFDownloadLink,
-  Text,
-  Document,
-  Page,
-  StyleSheet,
-  View
-} from '@react-pdf/renderer'
 
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
@@ -305,6 +297,7 @@ const subscribe = async (client, teamId) => {
 }
 
 export default function Home() {
+  const [url, setUrl] = useState('')
   const [issues, setIssues] = useState([])
   const [viewId, setViewId] = useState(null)
   const [state, setState] = useState({})
@@ -312,7 +305,6 @@ export default function Home() {
   const [selectedIssue, setSelectedIssue] = useState()
   const [isReportOpen, setIsReportOpen] = useState()
   const [loading, setLoading] = useState(true)
-  const [onboardingUrl, setOnboardingUrl] = useState(null)
   const [total, setTotal] = useState('0')
 
   useEffect(() => {
@@ -355,57 +347,6 @@ export default function Home() {
   useEffect(() => {
     ;(async () => {
       let user = parse(localStorage.getItem('user'))
-      if (!user) {
-        const id = uuidv4()
-        const unsubscribe = await supabase
-          .from(`users:id=eq.${id}`)
-          .on('INSERT', async payload => {
-            console.log('Change received!', payload)
-            const { new: user } = payload
-            //ipcRenderer.send('DONE', 'DONE')
-            console.log('USER', str(user))
-            const { accessToken } = user
-            let data = await getStateWithLoggedIssues(accessToken)
-
-            const linearClient = new LinearClient({ accessToken })
-            let teams = await linearClient.teams()
-            let teamIds = teams.nodes.map(x => x.id)
-            console.log(teamIds)
-            await Promise.all(
-              teamIds.map(teamId => subscribe(linearClient, teamId))
-            )
-            user.awaitingWebhookSetup = false
-            localStorage.setItem('user', str(user))
-            setOnboardingUrl(null)
-            const canceled = data.WorkflowState.map(x =>
-              x.name === 'Canceled' ? x.id : null
-            ).filter(Boolean)
-            const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
-            data.Issue = issues
-            setState(data)
-            setLoading(false)
-          })
-          .subscribe()
-
-        const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
-
-        window.open(url)
-        setOnboardingUrl(url)
-      }
-    })()
-  }, [])
-
-  // useEffect(() => {
-  //   ;(async () => {
-  //     const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
-
-  //     window.open(url)
-  //   })()
-  // }, [])
-
-  useEffect(() => {
-    ;(async () => {
-      let user = parse(localStorage.getItem('user'))
       //const user = store.get('user')
       if (user?.accessToken) {
         let data = await getStateWithLoggedIssues(user.accessToken)
@@ -441,7 +382,54 @@ export default function Home() {
     }
   }, [state])
 
-  if (onboardingUrl) {
+  useEffect(() => {
+    ;(async () => {
+      let user = parse(localStorage.getItem('user'))
+      if (!user) {
+        const id = uuidv4()
+        const unsubscribe = await supabase
+          .from(`users:id=eq.${id}`)
+          .on('INSERT', async payload => {
+            console.log('Change received!', payload)
+            const { new: user } = payload
+            //ipcRenderer.send('DONE', 'DONE')
+            console.log('USER', str(user))
+            const { accessToken } = user
+            let data = await getStateWithLoggedIssues(accessToken)
+
+            const linearClient = new LinearClient({ accessToken })
+            let teams = await linearClient.teams()
+            let teamIds = teams.nodes.map(x => x.id)
+            console.log(teamIds)
+            await Promise.all(
+              teamIds.map(teamId => subscribe(linearClient, teamId))
+            )
+            user.awaitingWebhookSetup = false
+            localStorage.setItem('user', str(user))
+            setUrl(null)
+            const canceled = data.WorkflowState.map(x =>
+              x.name === 'Canceled' ? x.id : null
+            ).filter(Boolean)
+            const issues = data.Issue.filter(x => !canceled.includes(x.stateId))
+            data.Issue = issues
+            setState(data)
+            setLoading(false)
+          })
+          .subscribe()
+
+        const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+        setUrl(url)
+      }
+    })()
+  }, [])
+
+  const [active, setActive] = useState(false)
+  const range = useRef({
+    from: undefined,
+    to: undefined
+  })
+
+  if (url) {
     return (
       <a
         className="text-sm text-gray-600"
@@ -453,7 +441,7 @@ export default function Home() {
         }}
         onClick={event => {
           setLoading(true)
-          setOnboardingUrl(null)
+          setUrl(null)
           event.preventDefault()
           let newwindow = window.open(
             event.target.href,
@@ -465,124 +453,125 @@ export default function Home() {
           }
           //require('electron').shell.openExternal(event.target.href)
         }}
-        href={onboardingUrl}
+        href={url}
       >
         Login with Linear
       </a>
     )
-  }
-
-  const [active, setActive] = useState(false)
-  const range = useRef({
-    from: undefined,
-    to: undefined
-  })
-  return loading ? (
-    <div
-      className="text-sm text-gray-600"
-      style={{
-        position: 'fixed',
-        left: '50%',
-        top: '50%',
-        transform: 'translate(-50%,-50%)'
-      }}
-    >
-      Loading...
-    </div>
-  ) : (
-    <AppContext.Provider
-      value={{
-        total,
-        range,
-        setActive,
-        issues,
-        setIssues,
-        state,
-        viewId,
-        setViewId,
-        showTimeTrackerLauncher,
-        setShowTimeTrackerLauncher,
-        selectedIssue,
-        setSelectedIssue,
-        isReportOpen,
-        setIsReportOpen
-      }}
-    >
+  } else if (loading) {
+    return (
       <div
+        className="text-sm text-gray-600"
         style={{
-          display: 'flex',
-          width: '100%',
-          height: '100%',
-          overflow: 'hidden'
+          position: 'fixed',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%,-50%)'
         }}
       >
-        <nav
-          style={{
-            //background: '#ccc',
-            position: 'relative',
-            width: '220px',
-            height: '100%',
-            maxWidth: '330px',
-            minWidth: '220px',
-            boxSizing: 'border-box',
-            flexShrink: 0,
-            display: 'flex',
-            height: 'auto',
-            borderRight: '1px solid rgb(239, 241, 244)',
-            flexDirection: 'column'
-          }}
-        >
-          <button
-            className={`${
-              active ? 'bg-gray-100' : ''
-            }  text-left mt-6 ml-3 rounded-md hover:bg-gray-100 mr-3 py-1 px-2 text-gray-700 text-sm`}
-            onClick={async () => {
-              setActive(true)
-              const client = new LinearClient({
-                accessToken: parse(localStorage.getItem('user')).accessToken
-              })
-              let viewer = await client.viewer
-              let { id } = viewer
-              setIssues(prev => prev.filter(x => x.assigneeId === id))
-            }}
-          >
-            My Issues
-          </button>
-          <div className="flex flex-1"></div>
-          <Logout />
-        </nav>
+        Loading...
+      </div>
+    )
+  } else {
+    return (
+      <AppContext.Provider
+        value={{
+          setLoading,
+          setState,
+          setUrl,
+          total,
+          range,
+          setActive,
+          issues,
+          setIssues,
+          state,
+          viewId,
+          setViewId,
+          showTimeTrackerLauncher,
+          setShowTimeTrackerLauncher,
+          selectedIssue,
+          setSelectedIssue,
+          isReportOpen,
+          setIsReportOpen
+        }}
+      >
         <div
           style={{
             display: 'flex',
-            flexShrink: 'initial',
-            flexBasis: 'initial',
-            flexDirection: 'column',
-            flexGrow: '1',
-            position: 'relative',
-            overflow: 'auto',
-            placeItems: 'stretch'
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden'
           }}
         >
-          <Header />
+          <nav
+            style={{
+              //background: '#ccc',
+              position: 'relative',
+              width: '220px',
+              height: '100%',
+              maxWidth: '330px',
+              minWidth: '220px',
+              boxSizing: 'border-box',
+              flexShrink: 0,
+              display: 'flex',
+              height: 'auto',
+              borderRight: '1px solid rgb(239, 241, 244)',
+              flexDirection: 'column'
+            }}
+          >
+            <button
+              className={`${
+                active ? 'bg-gray-100' : ''
+              }  text-left mt-6 ml-3 rounded-md hover:bg-gray-100 mr-3 py-1 px-2 text-gray-700 text-sm`}
+              onClick={async () => {
+                setActive(true)
+                const client = new LinearClient({
+                  accessToken: parse(localStorage.getItem('user')).accessToken
+                })
+                let viewer = await client.viewer
+                let { id } = viewer
+                setIssues(prev => prev.filter(x => x.assigneeId === id))
+              }}
+            >
+              My Issues
+            </button>
+            <div className="flex flex-1"></div>
+            <Logout />
+          </nav>
+          <div
+            style={{
+              display: 'flex',
+              flexShrink: 'initial',
+              flexBasis: 'initial',
+              flexDirection: 'column',
+              flexGrow: '1',
+              position: 'relative',
+              overflow: 'auto',
+              placeItems: 'stretch'
+            }}
+          >
+            <Header />
 
-          <div className="relative">
-            <MainWindow />
-            <div className="border-t-2 border-gray-50 flex items-center">
-              <div className="flex-1"></div>
-              <div className="mr-2 mt-2 text-xs text-gray-300">
-                Total: {total}
+            <div className="relative">
+              <MainWindow />
+              <div className="border-t-2 border-gray-50 flex items-center">
+                <div className="flex-1"></div>
+                <div className="mr-2 mt-2 text-xs text-gray-300">
+                  Total: {total}
+                </div>
               </div>
             </div>
-          </div>
 
-          <TrackTimeLauncher />
+            <TrackTimeLauncher />
+          </div>
         </div>
-      </div>
-    </AppContext.Provider>
-  )
+      </AppContext.Provider>
+    )
+  }
 }
 
 const Logout = () => {
+  const { setUrl, setState, setLoading } = useAppContext()
   return (
     <button
       onClick={async () => {
@@ -608,7 +597,7 @@ const Logout = () => {
             )
             user.awaitingWebhookSetup = false
             localStorage.setItem('user', str(user))
-            setOnboardingUrl(null)
+            setUrl(null)
             const canceled = data.WorkflowState.map(x =>
               x.name === 'Canceled' ? x.id : null
             ).filter(Boolean)
@@ -620,9 +609,7 @@ const Logout = () => {
           .subscribe()
 
         const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
-
-        setOnboardingUrl(url)
-        //setState(null)
+        setUrl(url)
       }}
       className="flex items-center ml-4 mt-3 mb-2 text-xs text-gray-400"
     >
@@ -642,184 +629,6 @@ const Logout = () => {
       </svg>
       Logout
     </button>
-  )
-}
-
-export const styles = StyleSheet.create({
-  body: {
-    padding: 10
-  },
-  table: {
-    display: 'table',
-    width: 'auto'
-  },
-  tableRow: {
-    margin: 'auto',
-    flexDirection: 'row'
-  },
-  tableColHeader: {
-    width: '16.6%',
-    borderStyle: 'solid',
-    color: '#999',
-    fontSize: 10,
-    fontWeight: 400
-  },
-  tableCol: {
-    width: '16.6%',
-    borderStyle: 'solid',
-    borderColor: '#eee',
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    paddingBottom: 6,
-    paddingTop: 6,
-    color: '#222'
-  },
-  tableCellHeader: {
-    margin: 'auto',
-    margin: 5,
-    fontSize: 12,
-    fontWeight: 500
-  },
-  tableCell: {
-    margin: 'auto',
-    margin: 5,
-    fontSize: 10
-  },
-  date: {
-    fontSize: '14px',
-    marginBottom: '30px',
-    marginLeft: '5px',
-    color: '#666'
-  },
-  total: {
-    fontSize: '14px',
-    marginBottom: '10px',
-    marginLeft: '5px',
-    color: '#666'
-  }
-})
-
-export const Report = ({ from, to, issues, state, total }) => {
-  return (
-    <Document>
-      <Page style={styles.body}>
-        <View>
-          <Text style={styles.total}>Total: {total}</Text>
-        </View>
-        <View>
-          <Text style={styles.date}>
-            {from} - {to}
-          </Text>
-        </View>
-        <View style={styles.table}>
-          <View style={styles.tableRow}>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Date</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Issue</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Project</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Cycle</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Assignee</Text>
-            </View>
-            <View style={styles.tableColHeader}>
-              <Text style={styles.tableCellHeader}>Duration</Text>
-            </View>
-          </View>
-
-          {issues &&
-            issues.map((issue, index) => {
-              return (
-                <View style={styles.tableRow}>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>
-                      {new Date(issue.createdAt).toDateString()}
-                    </Text>
-                  </View>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>{issue.title}</Text>
-                  </View>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>
-                      {state.Project.find(x => x.id === issue.projectId)?.name}
-                    </Text>
-                  </View>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>
-                      {state.Cycle.find(x => x.id === issue.cycleId)?.number}
-                    </Text>
-                  </View>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>
-                      {state.User.find(x => x.id === issue.assigneeId)?.name}
-                    </Text>
-                  </View>
-                  <View style={styles.tableCol}>
-                    <Text style={styles.tableCell}>
-                      {issue.duration && juration().humanize(issue.duration)}
-                    </Text>
-                  </View>
-                </View>
-              )
-            })}
-        </View>
-      </Page>
-    </Document>
-  )
-}
-
-const DownloadReport = () => {
-  const { range, issues, state, total } = useAppContext()
-  const [isClient, setIsClient] = useState(false)
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-  // if (range.current.from) {
-  //   let date = range.current.from.toISOString().split('T')[0]
-  //   //console.log(date)
-  // }
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  useEffect(() => {
-    if (range.current.from) {
-      let from = range.current.from.toISOString().split('T')[0]
-      setFrom(from)
-    }
-    if (range.current.to) {
-      let to = range.current.to.toISOString().split('T')[0]
-      setTo(to)
-    }
-  }, [range.current])
-  return ''
-  return (
-    <div>
-      {isClient && (
-        <PDFDownloadLink
-          document={
-            <Report
-              issues={issues}
-              from={from}
-              to={to}
-              state={state}
-              total={total}
-            />
-          }
-          fileName="Report.pdf"
-        >
-          {({ blob, url, loading, error }) =>
-            loading ? 'Loading document...' : 'Download my resume'
-          }
-        </PDFDownloadLink>
-      )}
-    </div>
   )
 }
 
