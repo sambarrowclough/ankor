@@ -10,20 +10,18 @@ files:
       - package.json
       - app
 publish: null
-afterSign: afterSignHook.js
-mac:
-  hardenedRuntime: true
-  gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
+# afterSign: afterSignHook.js
+# mac:
+#   hardenedRuntime: true
+#   gatekeeperAssess: false
+#   entitlements: build/entitlements.mac.plist
+#   entitlementsInherit: build/entitlements.mac.plist
+#   publish:
+#     - github
+win:
   publish:
     - github
-win:
   target:
-    - target: nsis
-      arch:
-        - x64
-        - ia32
-        - arm64
+    - nsis
 dmg:
   sign: false
