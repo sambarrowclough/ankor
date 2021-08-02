@@ -9,7 +9,11 @@
 6. Once authorized, the Ankor app will open up with your issues.
 
 ## Windows
-Currently there is no windows support. I have yet to do testing on a windows machine!
+1. Head to the [Releases](https://github.com/sambarrowclough/ankor/releases) pages, and download ankor.Setup.{version}.exe
+2. Once downloaded, double click the installer in your Downloads folder.
+3. You will run into a "Windows protected your PC" prompt. [^1]
+4. Hit "More info"
+5. Hit "Run anyway"
 
 # Getting started
 1. Once the app is authorized, you will be presented with a list of your tasks.
@@ -18,3 +22,6 @@ Currently there is no windows support. I have yet to do testing on a windows mac
 4. Type in the duration of the task. We read time as human readable time formats such as "1h, 1 hour, 1h 10m, 10 mins, 10m".
 
 If you have any issues, please email me at sam.barrowclough@gmai.com
+
+
+[^1]: The app for windows is not yet code signed. It costs (at a minimum) $250/yr for a license - which quite frankly, is a lot of money for this idea which may not take off. I will however buy the license if/once this idea does generate some income!
