@@ -395,6 +395,14 @@ export default function Home() {
     })()
   }, [])
 
+  // useEffect(() => {
+  //   ;(async () => {
+  //     const url = `https://linear.app/oauth/authorize?client_id=51b71a2c9fd2dcb50f362420d10fee4d&redirect_uri=https://linear-oauth-tester.sambarrowclough.repl.co/oauth&response_type=code&scope=read,write,issues:create&state=${id}`
+
+  //     window.open(url)
+  //   })()
+  // }, [])
+
   useEffect(() => {
     ;(async () => {
       let user = parse(localStorage.getItem('user'))
@@ -508,8 +516,9 @@ export default function Home() {
           overflow: 'hidden'
         }}
       >
-        <div
+        <nav
           style={{
+            //background: '#ccc',
             position: 'relative',
             width: '220px',
             height: '100%',
@@ -518,10 +527,11 @@ export default function Home() {
             boxSizing: 'border-box',
             flexShrink: 0,
             display: 'flex',
+            height: 'auto',
+            borderRight: '1px solid rgb(239, 241, 244)',
             flexDirection: 'column'
           }}
         >
-          <Logout />
           <button
             className={`${
               active ? 'bg-gray-100' : ''
@@ -538,7 +548,9 @@ export default function Home() {
           >
             My Issues
           </button>
-        </div>
+          <div className="flex flex-1"></div>
+          <Logout />
+        </nav>
         <div
           style={{
             display: 'flex',
@@ -612,7 +624,7 @@ const Logout = () => {
         setOnboardingUrl(url)
         //setState(null)
       }}
-      className="flex items-center ml-4 mt-3 text-xs text-gray-400"
+      className="flex items-center ml-4 mt-3 mb-2 text-xs text-gray-400"
     >
       <svg
         className="mr-1 w-3.5 h-3.5 "
@@ -819,7 +831,7 @@ const Header = () => {
   // }
 
   return (
-    <div className="header border-2 border-gray-100 flex items-center py-4 px-4 text-gray-600 pt-7">
+    <div className="header  flex items-center py-4 px-4 text-gray-600 pt-7">
       <Issue />
       <div className="flex-1"></div>
       {/* <DateComponent /> */}
