@@ -587,7 +587,6 @@ const Logout = () => {
             console.log('USER', str(user))
             const { accessToken } = user
             let data = await getStateWithLoggedIssues(accessToken)
-
             const linearClient = new LinearClient({ accessToken })
             let teams = await linearClient.teams()
             let teamIds = teams.nodes.map(x => x.id)
@@ -633,12 +632,6 @@ const Logout = () => {
 }
 
 const Header = () => {
-  // const { range } = useAppContext()
-  // if (range.current.from) {
-  //   let date = range.current.from.toISOString().split('T')[0]
-  //   console.log(date)
-  // }
-
   return (
     <div className="header  flex items-center py-4 px-4 text-gray-600 pt-7">
       <Issue />
@@ -647,7 +640,6 @@ const Header = () => {
       <DayPicker />
       <Sort />
       <Filter />
-      <DownloadReport />
     </div>
   )
 }
