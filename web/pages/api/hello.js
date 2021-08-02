@@ -60,7 +60,7 @@ function getAuthenticatedClient() {
   })
 }
 
-export default async function callback(req, res) {
+async function callback(req, res) {
   try {
     console.log('callback')
     // acquire the code from the querystring, and close the web server.
@@ -83,4 +83,3 @@ export default async function callback(req, res) {
 
   //res.status(200).json({ name: 'John Doe' })
 }
-
