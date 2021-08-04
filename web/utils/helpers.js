@@ -1,17 +1,31 @@
-export const logIssue = async ({ id, duration }) => {
-  try {
-    const opts = {
-      body: JSON.stringify({ duration, id }),
-      method: 'POST',
-      headers: { 'content-type': 'application/json' }
-    }
-    return await fetch(
-      'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
-      opts
-    )
-  } catch (e) {
-    console.log('Something went wrong', e)
+import { supabase } from '../lib/supabase'
+
+export const logIssue = async issue => {
+  // let { data: gotIssue, error: getError } = await supabase
+  //   .from('loggedIssues')
+  //   .select('*')
+  //   .eq('id', issue.id)
+
+  // if (!gotIssue[0]) {
+  //   gotIssue = [{ id: issue.id, logging: issue.logging }]
+  // } else {
+  //   gotIssue[0].logging = issue.logging
+  // }
+
+  let savedIssue = {
+    id: issue.id,
+    logging: issue.logging
   }
+
+  const { data, error: saveError } = await supabase
+    .from('loggedIssues')
+    .insert([savedIssue], { upsert: true })
+
+  if (saveError) {
+    throw new Error(saveError.message)
+  }
+
+  return data
 }
 logIssue.displayName = 'logIssue'
 

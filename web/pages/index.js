@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
+
 import * as _ from 'lodash'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { styled } from '@stitches/react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { animated } from 'react-spring'
+import 'vercel-toast/dist/vercel-toast.css'
+import { createToast } from 'vercel-toast'
 
 import Filter from '../components/Filter'
 import Issue from '../components/Issue'
@@ -13,14 +15,11 @@ import { useAppContext, AppContext } from '../utils/useApp'
 import { MainWindow, Button, DayPicker } from '../components'
 import { socket } from '../lib/socket'
 import { useSnap, formatDate } from '../utils/useSnap'
+import { supabase } from '../lib/supabase'
 
 const log = console.log
 const str = data => JSON.stringify(data, null, 2)
 const parse = data => JSON.parse(data)
-const supabaseUrl = 'https://sncjxquqyxhfzyafxhes.supabase.co'
-const supabaseKey =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYxMTUyNjkxMiwiZXhwIjoxOTI3MTAyOTEyfQ.rV5CqAiEe3Iihp90geJgyvEmy0pW8ZRmlETuQ36G4KU'
-const supabase = createClient(supabaseUrl, supabaseKey)
 
 const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
   // return JSON.parse(
@@ -35,19 +34,13 @@ const fetchSyncBootstrapDataFromServer = ({ accessToken }) => {
 }
 
 const getLoggedIssues = async () => {
-  // https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue
-  try {
-    const opts = {
-      method: 'GET',
-      headers: { 'content-type': 'application/json' }
-    }
-    return await fetch(
-      'https://linear-webhook-websocket-server.sambarrowclough.repl.co/logIssue',
-      opts
-    ).then(r => r.json())
-  } catch (e) {
-    console.log('Something went wrong', e)
+  const { data, error } = await supabase.from('loggedIssues').select('*')
+
+  if (error) {
+    throw new Error(error.message)
   }
+
+  return data
 }
 
 const getStateWithLoggedIssues = async accessToken => {
@@ -65,16 +58,23 @@ const getStateWithLoggedIssues = async accessToken => {
       e
     )
   }
-  if (!syncBootstrapData) return alert('Failed to fetch data from Linear!')
+  if (!syncBootstrapData) return fail('Failed to fetch data from Linear!')
   const all = JSON.parse(syncBootstrapData.data.syncBootstrap.state)
 
   // Pair logged issues to Linear issues
   const loggedIssues = await getLoggedIssues()
   if (!loggedIssues) return
-  loggedIssues.forEach(x => {
-    const index = all.Issue.findIndex(y => y.id === x.id)
-    if (index != -1) {
-      all.Issue[index].duration = x.duration
+  loggedIssues.forEach(({ logging, id }) => {
+    if (logging) {
+      let duration = logging.reduce((acc, item) => {
+        let { duration } = item
+        acc += duration
+        return acc
+      }, 0)
+      let durationString = juration().humanize(duration / 1000)
+      const index = all.Issue.findIndex(y => y.id === id)
+      all.Issue[index].durationString = durationString
+      all.Issue[index].logging = logging
     }
   })
   return all
@@ -315,6 +315,17 @@ export default function Home() {
   //   // setState(JSON.parse(data.syncBootstrap.state))
   // })
 
+  // useEffect(() => {
+  //   let newwindow = window.open(
+  //     'https://google.com',
+  //     'name',
+  //     'height=500,width=600'
+  //   )
+  //   if (window.focus) {
+  //     newwindow.focus()
+  //   }
+  // }, [])
+
   useEffect(() => {
     socket.on('DONE', function (payload) {
       console.log('CLIENT#received', payload)
@@ -527,6 +538,7 @@ export default function Home() {
               My Issues
             </button>
             <div className="flex flex-1"></div>
+            <Gsheets />
             <Logout />
           </nav>
           <div
@@ -559,6 +571,240 @@ export default function Home() {
       </AppContext.Provider>
     )
   }
+}
+
+const Gsheets = () => {
+  const { issues, state } = useAppContext()
+  const [url, setUrl] = useState('')
+  const [spreadsheetId, setSpreadsheetId] = useState(null)
+  const [gid, setGid] = useState(null)
+  useEffect(async () => {
+    fetch(`api/hello`)
+      .then(r => r.json())
+      .then(({ url }) => {
+        setUrl(url)
+      })
+  }, [])
+
+  useEffect(async () => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('spreadsheetId')
+      .eq('id', getUser().id)
+    if (data.length && data[0].spreadsheetId) {
+      setSpreadsheetId(data[0].spreadsheetId)
+    }
+  }, [])
+
+  const handleConnect = async event => {
+    event.preventDefault()
+    let id = uuidv4()
+    ok('Connecting to Google Sheets...')
+
+    const unsubscribe = await supabase
+      .from(`googleAuth:state=eq.${id}`)
+      .on('INSERT', async payload => {
+        console.log('googleAuth:payload', payload)
+        ok('Setting up Google Sheets...')
+
+        newwindow.close()
+        const { tokens } = payload.new
+
+        let body = issues.map(issue => {
+          issue.projectName = state.Project.find(
+            x => x.id === issue.projectId
+          )?.name
+          issue.cycleName = state.Cycle.find(
+            x => x.id === issue.cycleId
+          )?.number
+          issue.assigneeName = state.User.find(
+            x => x.id === issue.assigneId
+          )?.name
+          return issue
+        })
+
+        const { data, error } = await supabase
+          .from('users')
+          .update({ tokens })
+          .eq('id', getUser().id)
+
+        if (error) {
+          alert(str(error))
+        }
+
+        // Send issues to api/generateSheet
+        fetch('api/generateSheet', {
+          method: 'POST',
+          body: str({ issues: body, tokens }),
+          headers: {
+            'content-type': 'application/json'
+          }
+        })
+          .then(r => r.json())
+          .then(async ({ spreadsheetId }) => {
+            setSpreadsheetId(spreadsheetId)
+            ok('Connected to Google Sheets')
+
+            const { data, error } = await supabase
+              .from('users')
+              .update({ spreadsheetId })
+              .eq('id', getUser().id)
+            if (error) {
+              return alert(str(error))
+            }
+          })
+      })
+      .subscribe()
+
+    let authUrl = `${url}&state=${id}`
+
+    let newwindow = window.open(authUrl, 'name', 'height=500,width=600')
+    if (window.focus) {
+      newwindow.focus()
+    }
+  }
+
+  const handleDisconnect = e => {
+    setSpreadsheetId(null)
+    fetch('api/revokeSheet', {
+      method: 'GET',
+      //body: str({ issues: body, tokens }),
+      headers: {
+        'content-type': 'application/json'
+      }
+    }).then(r => {
+      r.json().then(({ message }) => {
+        if (r.status !== 200) {
+          return fail(message)
+        } else {
+          return ok('Disconnected from Google Sheets')
+        }
+      })
+    })
+  }
+
+  const handleBuildSheet = async () => {
+    ok('Building spreadsheet...')
+    let body = issues.map(issue => {
+      issue.projectName = state.Project.find(
+        x => x.id === issue.projectId
+      )?.name
+      issue.cycleName = state.Cycle.find(x => x.id === issue.cycleId)?.number
+      issue.assigneeName = state.User.find(x => x.id === issue.assigneId)?.name
+      return issue
+    })
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', getUser().id)
+
+    if (!data.length) {
+      return
+    }
+
+    let tokens = data[0].tokens
+
+    // Send issues to api/generateSheet
+    fetch('api/generateSheet', {
+      method: 'POST',
+      body: str({ issues: body, tokens, spreadsheetId }),
+      headers: {
+        'content-type': 'application/json'
+      }
+    })
+      .then(r => {
+        if (r.status !== 200) {
+          r.json().then(({ message }) => {
+            fail(message)
+          })
+        } else {
+          return r.json()
+        }
+      })
+      .then(r => {
+        console.log(r)
+        if (r?.spreadsheetId && r?.gid) {
+          setSpreadsheetId(r.spreadsheetId)
+          // https://docs.google.com/spreadsheets/d/1CQu20vTVex-0iKSKj1As1YbRIBmXD02wC_CMYcfQHns/edit#gid=1859623370
+          let sheet = `https://docs.google.com/spreadsheets/d/${r.spreadsheetId}/edit#gid=${r.gid}`
+          createToast('Spreadsheet built', {
+            action: {
+              text: 'Open Sheet',
+              callback(toast) {
+                window.open(sheet)
+                toast.destory()
+              }
+            },
+            cancel: 'Close'
+          })
+        }
+
+        if (r?.gid) {
+          setGid(r.gid)
+        }
+      })
+  }
+
+  return (
+    <div className="ml-4 mb-8 flex-col items-center text-xs text-gray-600 border-b-2 border-t-2 pt-10  border-gray-50 pb-10 mr-4">
+      <div className="flex items-center mb-2">
+        <svg
+          width="17"
+          height="22"
+          viewBox="0 0 19 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M16.5714 24H1.71429C0.767429 24 0 23.2326 0 22.2857V1.71429C0 0.767429 0.767429 0 1.71429 0H12.5714L18.2857 5.71429V22.2857C18.2857 23.2326 17.5183 24 16.5714 24Z"
+            fill="#43A047"
+          ></path>
+          <path
+            d="M18.2858 5.71429H12.5715V0L18.2858 5.71429Z"
+            fill="#C8E6C9"
+          ></path>
+          <path
+            d="M12.5715 5.71423L18.2858 11.4285V5.71423H12.5715Z"
+            fill="#2E7D32"
+          ></path>
+          <path
+            d="M13.1429 11.4286H5.14286H4V12.5714V13.7143V14.8572V16V17.1429V18.2857V19.4286H14.2857V18.2857V17.1429V16V14.8572V13.7143V12.5714V11.4286H13.1429ZM5.14286 12.5714H7.42857V13.7143H5.14286V12.5714ZM5.14286 14.8572H7.42857V16H5.14286V14.8572ZM5.14286 17.1429H7.42857V18.2857H5.14286V17.1429ZM13.1429 18.2857H8.57143V17.1429H13.1429V18.2857ZM13.1429 16H8.57143V14.8572H13.1429V16ZM13.1429 13.7143H8.57143V12.5714H13.1429V13.7143Z"
+            fill="#E8F5E9"
+          ></path>
+        </svg>
+        <span className="ml-2 text-md text-gray-400">Google Sheets</span>
+      </div>
+
+      {spreadsheetId ? (
+        <button
+          onClick={handleDisconnect}
+          className="rounded border-red-100 border-2 px-2 py-1 mt-2 mr-4"
+        >
+          Disconnect
+        </button>
+      ) : (
+        <button
+          onClick={handleConnect}
+          href={url}
+          className="rounded border-blue-100 border-2 px-2 py-1 mt-2 mr-4"
+        >
+          Connect
+        </button>
+      )}
+
+      <div className="flex flex-1"></div>
+
+      {spreadsheetId && (
+        <button
+          onClick={handleBuildSheet}
+          className="rounded border-gray-100 border-2 px-2 py-1 mt-2 mr-4"
+        >
+          Build Sheet
+        </button>
+      )}
+    </div>
+  )
 }
 
 const Logout = () => {
@@ -622,12 +868,16 @@ const Logout = () => {
   )
 }
 
+const ok = msg => createToast(msg, { timeout: 5000 })
+const fail = msg => createToast(msg, { type: 'error', timeout: 5000 })
+
+const getUser = () => parse(localStorage.getItem('user'))
+
 const Header = () => {
   return (
     <div className="header  flex items-center py-4 px-4 text-gray-600 pt-7">
       <Issue />
       <div className="flex-1"></div>
-      {/* <DateComponent /> */}
       <DayPicker />
       <Sort />
       <Filter />
@@ -694,117 +944,117 @@ const viewIssuesFrom = (issues, date) => {
   }
 }
 
-const DateComponent = () => {
-  const { setIssues, state: appState } = useAppContext()
-  const [state, setState] = useState(0)
-  const [open, setOpen] = useState(false)
-  const [dateText, setDateText] = useState('Date')
-  useHotkeys('d', () => setOpen(p => !p))
-  const snap = useSnap(open)
-  return (
-    false && (
-      <DropdownMenu.Root open={open} onOpenChange={setOpen}>
-        <DropdownMenu.Trigger className="mx-2">
-          <Button shortcut={'D'} text={dateText}></Button>
-        </DropdownMenu.Trigger>
-        {snap(
-          (styles, item) =>
-            item && (
-              <animated.div style={{ ...styles }}>
-                <StyledContent
-                  style={{ ...styles }}
-                  onCloseAutoFocus={e => e.preventDefault()}
-                  onEscapeKeyDown={() => {
-                    setOpen(false)
-                  }}
-                  align="start"
-                  className="text-gray-700"
-                >
-                  <DropdownMenu.RadioGroup
-                    value={state}
-                    onValueChange={setState}
-                  >
-                    <StyledRadioItem
-                      onSelect={_ => {
-                        const latest = viewIssuesFrom(appState.Issue, 'DAY')
-                        setIssues(latest)
-                        setDateText('Today')
-                      }}
-                      key={0}
-                      value={0}
-                    >
-                      Today
-                      <DropdownMenu.ItemIndicator>
-                        <TickIcon />
-                      </DropdownMenu.ItemIndicator>
-                    </StyledRadioItem>
+// const DateComponent = () => {
+//   const { setIssues, state: appState } = useAppContext()
+//   const [state, setState] = useState(0)
+//   const [open, setOpen] = useState(false)
+//   const [dateText, setDateText] = useState('Date')
+//   useHotkeys('d', () => setOpen(p => !p))
+//   const snap = useSnap(open)
+//   return (
+//     false && (
+//       <DropdownMenu.Root open={open} onOpenChange={setOpen}>
+//         <DropdownMenu.Trigger className="mx-2">
+//           <Button shortcut={'D'} text={dateText}></Button>
+//         </DropdownMenu.Trigger>
+//         {snap(
+//           (styles, item) =>
+//             item && (
+//               <animated.div style={{ ...styles }}>
+//                 <StyledContent
+//                   style={{ ...styles }}
+//                   onCloseAutoFocus={e => e.preventDefault()}
+//                   onEscapeKeyDown={() => {
+//                     setOpen(false)
+//                   }}
+//                   align="start"
+//                   className="text-gray-700"
+//                 >
+//                   <DropdownMenu.RadioGroup
+//                     value={state}
+//                     onValueChange={setState}
+//                   >
+//                     <StyledRadioItem
+//                       onSelect={_ => {
+//                         const latest = viewIssuesFrom(appState.Issue, 'DAY')
+//                         setIssues(latest)
+//                         setDateText('Today')
+//                       }}
+//                       key={0}
+//                       value={0}
+//                     >
+//                       Today
+//                       <DropdownMenu.ItemIndicator>
+//                         <TickIcon />
+//                       </DropdownMenu.ItemIndicator>
+//                     </StyledRadioItem>
 
-                    <StyledRadioItem
-                      onSelect={() => {
-                        const latest = viewIssuesFrom(appState.Issue, 'WEEK')
-                        if (latest) setIssues(latest)
-                        setDateText('Week')
-                      }}
-                      key={1}
-                      value={1}
-                    >
-                      Last week
-                      <DropdownMenu.ItemIndicator>
-                        <TickIcon />
-                      </DropdownMenu.ItemIndicator>
-                    </StyledRadioItem>
+//                     <StyledRadioItem
+//                       onSelect={() => {
+//                         const latest = viewIssuesFrom(appState.Issue, 'WEEK')
+//                         if (latest) setIssues(latest)
+//                         setDateText('Week')
+//                       }}
+//                       key={1}
+//                       value={1}
+//                     >
+//                       Last week
+//                       <DropdownMenu.ItemIndicator>
+//                         <TickIcon />
+//                       </DropdownMenu.ItemIndicator>
+//                     </StyledRadioItem>
 
-                    <StyledRadioItem
-                      onSelect={() => {
-                        const latest = viewIssuesFrom(appState.Issue, 'MONTH')
-                        setIssues(latest)
-                        setDateText('Month')
-                      }}
-                      key={2}
-                      value={2}
-                    >
-                      Last month
-                      <DropdownMenu.ItemIndicator>
-                        <TickIcon />
-                      </DropdownMenu.ItemIndicator>
-                    </StyledRadioItem>
+//                     <StyledRadioItem
+//                       onSelect={() => {
+//                         const latest = viewIssuesFrom(appState.Issue, 'MONTH')
+//                         setIssues(latest)
+//                         setDateText('Month')
+//                       }}
+//                       key={2}
+//                       value={2}
+//                     >
+//                       Last month
+//                       <DropdownMenu.ItemIndicator>
+//                         <TickIcon />
+//                       </DropdownMenu.ItemIndicator>
+//                     </StyledRadioItem>
 
-                    <StyledRadioItem
-                      onSelect={() => {
-                        const latest = viewIssuesFrom(appState.Issue, 'YEAR')
-                        setIssues(latest)
-                        setDateText('Year')
-                      }}
-                      key={3}
-                      value={3}
-                    >
-                      Last year
-                      <DropdownMenu.ItemIndicator>
-                        <TickIcon />
-                      </DropdownMenu.ItemIndicator>
-                    </StyledRadioItem>
+//                     <StyledRadioItem
+//                       onSelect={() => {
+//                         const latest = viewIssuesFrom(appState.Issue, 'YEAR')
+//                         setIssues(latest)
+//                         setDateText('Year')
+//                       }}
+//                       key={3}
+//                       value={3}
+//                     >
+//                       Last year
+//                       <DropdownMenu.ItemIndicator>
+//                         <TickIcon />
+//                       </DropdownMenu.ItemIndicator>
+//                     </StyledRadioItem>
 
-                    <StyledRadioItem
-                      onSelect={() => {
-                        const latest = viewIssuesFrom(appState.Issue, 'ALL')
-                        setIssues(latest)
-                        setDateText('Date')
-                      }}
-                      key={4}
-                      value={4}
-                    >
-                      View all issues
-                      <DropdownMenu.ItemIndicator>
-                        <TickIcon />
-                      </DropdownMenu.ItemIndicator>
-                    </StyledRadioItem>
-                  </DropdownMenu.RadioGroup>
-                  <StyledArrow />
-                </StyledContent>
-              </animated.div>
-            )
-        )}
-      </DropdownMenu.Root>
-    )
-  )
-}
+//                     <StyledRadioItem
+//                       onSelect={() => {
+//                         const latest = viewIssuesFrom(appState.Issue, 'ALL')
+//                         setIssues(latest)
+//                         setDateText('Date')
+//                       }}
+//                       key={4}
+//                       value={4}
+//                     >
+//                       View all issues
+//                       <DropdownMenu.ItemIndicator>
+//                         <TickIcon />
+//                       </DropdownMenu.ItemIndicator>
+//                     </StyledRadioItem>
+//                   </DropdownMenu.RadioGroup>
+//                   <StyledArrow />
+//                 </StyledContent>
+//               </animated.div>
+//             )
+//         )}
+//       </DropdownMenu.Root>
+//     )
+//   )
+// }

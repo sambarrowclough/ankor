@@ -67,7 +67,8 @@ export const MainWindow = ({}) => {
     >
       {({ index, style }) => {
         const item = issues[index]
-        const { title, duration, isRunning, startTime, id } = item
+        const { title, duration, isRunning, startTime, id, durationString } =
+          item
         const isHovered = hoveredRowIndex === index
         const isSelected = selectedRowIndex === index
         return (
@@ -93,7 +94,7 @@ export const MainWindow = ({}) => {
           >
             <div
               className={`w-2 h-2 ${
-                duration == null ? 'rounded-full bg-yellow-400' : ''
+                durationString == null ? 'rounded-full bg-yellow-400' : ''
               } mr-3`}
             ></div>
             <div
@@ -114,10 +115,8 @@ export const MainWindow = ({}) => {
               {title}
             </div>
             <div className="flex-1"></div>
-            {duration != undefined && (
-              <div className="text-xs text-gray-300 mr-2">
-                {juration().humanize(duration)}
-              </div>
+            {durationString != undefined && (
+              <div className="text-xs text-gray-300 mr-2">{durationString}</div>
             )}
             <Stopwatch id={id} startTime={startTime} isRunning={isRunning} />
           </div>
