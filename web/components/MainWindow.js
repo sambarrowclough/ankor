@@ -86,10 +86,10 @@ export const MainWindow = ({}) => {
               setSelectedIssue(issues[index])
             }}
             style={{
-              ...style,
-              boxShadow: `${
-                isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
-              }`
+              ...style
+              // boxShadow: `${
+              //   isSelected ? 'rgb(202, 211, 255) 0px 0px 0px 1px inset' : ''
+              // }`
             }}
           >
             <div
